@@ -14,7 +14,12 @@ import {
   TrendingUp,
   Flame,
   Menu,
-  X
+  X,
+  Zap,
+  MapPin,
+  Boxes,
+  PiggyBank,
+  Beaker
 } from "lucide-react";
 
 // Pages
@@ -26,6 +31,11 @@ import StockPlanner from "./pages/StockPlanner";
 import CashSystem from "./pages/CashSystem";
 import AllocationTool from "./pages/AllocationTool";
 import MarginWatch from "./pages/MarginWatch";
+import QuickMode from "./pages/QuickMode";
+import MarketsPage from "./pages/MarketsPage";
+import InventoryTracker from "./pages/InventoryTracker";
+import CashflowTracker from "./pages/CashflowTracker";
+import ProductCalculator from "./pages/ProductCalculator";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
@@ -38,13 +48,18 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   
   const navItems = [
     { path: "/", icon: LayoutDashboard, label: "Dashboard" },
+    { path: "/quick", icon: Zap, label: "Quick Mode" },
     { path: "/session", icon: ClipboardList, label: "Session Input" },
     { path: "/products", icon: Package, label: "Products / COGS" },
+    { path: "/calculator", icon: Beaker, label: "Product Calculator" },
     { path: "/sales", icon: BarChart3, label: "Sales Dashboard" },
     { path: "/stock", icon: Warehouse, label: "Stock Planner" },
+    { path: "/inventory", icon: Boxes, label: "Inventory Tracker" },
     { path: "/cash", icon: DollarSign, label: "Cash System" },
     { path: "/allocation", icon: Calculator, label: "Allocation Tool" },
+    { path: "/cashflow", icon: PiggyBank, label: "Cashflow Tracker" },
     { path: "/margin", icon: TrendingUp, label: "Margin Watch" },
+    { path: "/markets", icon: MapPin, label: "Markets" },
   ];
 
   return (
@@ -69,7 +84,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
         </div>
         
         {/* Navigation */}
-        <nav className="p-4 space-y-1">
+        <nav className="p-4 space-y-1 overflow-y-auto max-h-[calc(100vh-130px)]">
           {navItems.map((item) => (
             <NavLink
               key={item.path}
@@ -186,13 +201,18 @@ function App() {
       <Layout>
         <Routes>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/quick" element={<QuickMode />} />
           <Route path="/session" element={<SessionInput />} />
           <Route path="/products" element={<Products />} />
+          <Route path="/calculator" element={<ProductCalculator />} />
           <Route path="/sales" element={<SalesDashboard />} />
           <Route path="/stock" element={<StockPlanner />} />
+          <Route path="/inventory" element={<InventoryTracker />} />
           <Route path="/cash" element={<CashSystem />} />
           <Route path="/allocation" element={<AllocationTool />} />
+          <Route path="/cashflow" element={<CashflowTracker />} />
           <Route path="/margin" element={<MarginWatch />} />
+          <Route path="/markets" element={<MarketsPage />} />
         </Routes>
       </Layout>
     </BrowserRouter>

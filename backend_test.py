@@ -222,6 +222,109 @@ class RestaurantAPITester:
         success, inventory = self.run_test("Get Inventory", "GET", "inventory", 200)
         return success
 
+    def test_cashflow_endpoints(self):
+        """Test cashflow tracker endpoints"""
+        print("\n💰 TESTING CASHFLOW TRACKER")
+        
+        # Get cashflow targets
+        success, targets = self.run_test("Get Cashflow Targets", "GET", "cashflow", 200)
+        if not success:
+            return False
+            
+        print(f"   Found {len(targets)} cashflow targets")
+        
+        # Test creating a cashflow target
+        test_target = {
+            "month": "2026-08",
+            "sales_target": 5000,
+            "growth_saved": 500,
+            "emergency_saved": 300,
+            "notes": "Test target"
+        }
+        success, created = self.run_test("Create Cashflow Target", "POST", "cashflow", 200, data=test_target)
+        if success:
+            print(f"   Created target for {created.get('month', 'Unknown')}")
+        
+        return success
+
+    def test_product_ingredients_endpoints(self):
+        """Test product ingredients (calculator) endpoints"""
+        print("\n🧪 TESTING PRODUCT CALCULATOR")
+        
+        # Get products first to test with
+        success, products = self.run_test("Get Products for Calculator", "GET", "products", 200)
+        if not success or not products:
+            return False
+            
+        product_id = products[0]['id']
+        
+        # Get product ingredients
+        success, ingredients = self.run_test("Get Product Ingredients", "GET", f"products/{product_id}/ingredients", 200)
+        if not success:
+            return False
+            
+        print(f"   Product {products[0]['name']} has {len(ingredients.get('ingredients', []))} ingredients")
+        
+        # Test updating ingredients
+        test_ingredients = {
+            "ingredients": [
+                {
+                    "name": "Test Ingredient",
+                    "qty_per_order": 100,
+                    "unit": "g",
+                    "cost_per_unit": 0.05,
+                    "total_cost": 5.0
+                }
+            ]
+        }
+        success, updated = self.run_test("Update Product Ingredients", "PUT", f"products/{product_id}/ingredients", 200, data=test_ingredients)
+        if success:
+            print(f"   Updated ingredients, calculated food cost: ${updated.get('calculated_food_cost', 0)}")
+        
+        return success
+
+    def test_export_endpoints(self):
+        """Test CSV export endpoints"""
+        print("\n📤 TESTING EXPORT ENDPOINTS")
+        
+        # Test sessions export
+        success, _ = self.run_test("Export Sessions CSV", "GET", "export/sessions", 200)
+        if not success:
+            return False
+            
+        # Test products export
+        success, _ = self.run_test("Export Products CSV", "GET", "export/products", 200)
+        return success
+
+    def test_markets_crud(self):
+        """Test markets CRUD operations"""
+        print("\n🏪 TESTING MARKETS CRUD")
+        
+        # Create a new market
+        test_market = {
+            "name": "Test Market",
+            "preset_mix": {"BB": 10.0, "BR": 15.0}
+        }
+        success, created = self.run_test("Create Market", "POST", "markets", 200, data=test_market)
+        if not success:
+            return False
+            
+        market_id = created.get('id')
+        print(f"   Created market: {created.get('name')} (ID: {market_id})")
+        
+        # Update the market
+        update_data = {
+            "name": "Updated Test Market",
+            "preset_mix": {"BB": 12.0, "BR": 18.0}
+        }
+        success, _ = self.run_test("Update Market", "PUT", f"markets/{market_id}", 200, data=update_data)
+        if not success:
+            return False
+            
+        # Delete the market
+        success, _ = self.run_test("Delete Market", "DELETE", f"markets/{market_id}", 200)
+        return success
+
     def run_all_tests(self):
         """Run all API tests"""
         print("🚀 Starting Restaurant Management API Tests")
@@ -232,11 +335,15 @@ class RestaurantAPITester:
             self.test_root_endpoint,
             self.test_products_endpoints,
             self.test_markets_endpoints,
+            self.test_markets_crud,
             self.test_sessions_endpoints,
             self.test_dashboard_endpoints,
             self.test_stock_planner_endpoint,
             self.test_allocation_endpoints,
-            self.test_inventory_endpoint
+            self.test_inventory_endpoint,
+            self.test_cashflow_endpoints,
+            self.test_product_ingredients_endpoints,
+            self.test_export_endpoints
         ]
         
         for test in tests:

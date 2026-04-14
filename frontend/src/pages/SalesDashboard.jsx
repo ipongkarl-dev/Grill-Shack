@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { API } from "../App";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { Button } from "../components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Badge } from "../components/ui/badge";
 import {
@@ -26,7 +27,7 @@ import {
   AreaChart,
   Area
 } from "recharts";
-import { TrendingUp, DollarSign, Package, ShoppingCart } from "lucide-react";
+import { TrendingUp, DollarSign, Package, ShoppingCart, Download } from "lucide-react";
 
 const formatCurrency = (value) => {
   return new Intl.NumberFormat('en-NZ', {
@@ -82,13 +83,35 @@ const SalesDashboard = () => {
   return (
     <div className="space-y-6" data-testid="sales-dashboard">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl sm:text-4xl font-heading font-bold text-zinc-50">
-          Sales Dashboard
-        </h1>
-        <p className="text-zinc-400 mt-2">
-          Track sales performance across markets and products
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl sm:text-4xl font-heading font-bold text-zinc-50">
+            Sales Dashboard
+          </h1>
+          <p className="text-zinc-400 mt-2">
+            Track sales performance across markets and products
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-zinc-700 hover:bg-zinc-800"
+            onClick={() => window.open(`${API}/export/sessions`, '_blank')}
+            data-testid="export-sessions-btn"
+          >
+            <Download className="w-4 h-4 mr-1" /> Export Sessions
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-zinc-700 hover:bg-zinc-800"
+            onClick={() => window.open(`${API}/export/products`, '_blank')}
+            data-testid="export-products-btn"
+          >
+            <Download className="w-4 h-4 mr-1" /> Export Products
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}

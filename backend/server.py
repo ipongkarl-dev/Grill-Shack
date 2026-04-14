@@ -180,6 +180,38 @@ class InventoryEntryCreate(BaseModel):
     supplier: str = ""
     notes: str = ""
 
+class CashflowTarget(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    month: str  # YYYY-MM
+    sales_target: float = 0
+    actual_sales: float = 0
+    growth_saved: float = 0
+    emergency_saved: float = 0
+    notes: str = ""
+
+class CashflowTargetCreate(BaseModel):
+    month: str
+    sales_target: float = 0
+    growth_saved: float = 0
+    emergency_saved: float = 0
+    notes: str = ""
+
+class ProductIngredient(BaseModel):
+    name: str
+    qty_per_order: float = 0
+    unit: str = "g"
+    cost_per_unit: float = 0
+    total_cost: float = 0
+
+class ProductWithIngredients(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    product_id: str
+    ingredients: List[Dict[str, Any]] = []
+
+class ProductIngredientsUpdate(BaseModel):
+    ingredients: List[Dict[str, Any]]
+
 # ===================== HELPER FUNCTIONS =====================
 
 def serialize_doc(doc: dict) -> dict:
@@ -764,6 +796,156 @@ async def create_inventory_entry(input: InventoryEntryCreate):
     )
     
     return entry
+
+# -------- CASHFLOW TRACKER --------
+
+@api_router.get("/cashflow")
+async def get_cashflow_targets():
+    targets = await db.cashflow.find({}, {"_id": 0}).sort("month", 1).to_list(100)
+    # Auto-fill actual_sales from sessions
+    sessions = await db.sessions.find({}, {"_id": 0}).to_list(1000)
+    month_sales = {}
+    for s in sessions:
+        m = s.get('date', '')[:7]
+        month_sales[m] = month_sales.get(m, 0) + s.get('calculated_sales', 0)
+    for t in targets:
+        t['actual_sales'] = round(month_sales.get(t['month'], 0), 2)
+    return targets
+
+@api_router.post("/cashflow")
+async def create_cashflow_target(input: CashflowTargetCreate):
+    # Check if month already exists
+    existing = await db.cashflow.find_one({"month": input.month}, {"_id": 0})
+    if existing:
+        await db.cashflow.update_one(
+            {"month": input.month},
+            {"$set": {
+                "sales_target": input.sales_target,
+                "growth_saved": input.growth_saved,
+                "emergency_saved": input.emergency_saved,
+                "notes": input.notes
+            }}
+        )
+        updated = await db.cashflow.find_one({"month": input.month}, {"_id": 0})
+        return updated
+    target = CashflowTarget(
+        month=input.month,
+        sales_target=input.sales_target,
+        growth_saved=input.growth_saved,
+        emergency_saved=input.emergency_saved,
+        notes=input.notes
+    )
+    doc = target.model_dump()
+    await db.cashflow.insert_one(doc)
+    return serialize_doc(doc)
+
+@api_router.delete("/cashflow/{month}")
+async def delete_cashflow_target(month: str):
+    result = await db.cashflow.delete_one({"month": month})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Cashflow target not found")
+    return {"message": "Deleted"}
+
+# -------- PRODUCT INGREDIENTS (Calculator) --------
+
+@api_router.get("/products/{product_id}/ingredients")
+async def get_product_ingredients(product_id: str):
+    doc = await db.product_ingredients.find_one({"product_id": product_id}, {"_id": 0})
+    if not doc:
+        return {"product_id": product_id, "ingredients": []}
+    return doc
+
+@api_router.put("/products/{product_id}/ingredients")
+async def update_product_ingredients(product_id: str, input: ProductIngredientsUpdate):
+    # Calculate total food cost from ingredients
+    total_food_cost = 0
+    processed = []
+    for ing in input.ingredients:
+        qty = float(ing.get('qty_per_order', 0))
+        cost = float(ing.get('cost_per_unit', 0))
+        total = round(qty * cost, 4)
+        total_food_cost += total
+        processed.append({
+            "name": ing.get('name', ''),
+            "qty_per_order": qty,
+            "unit": ing.get('unit', 'g'),
+            "cost_per_unit": cost,
+            "total_cost": total
+        })
+
+    await db.product_ingredients.update_one(
+        {"product_id": product_id},
+        {"$set": {"product_id": product_id, "ingredients": processed}},
+        upsert=True
+    )
+
+    # Auto-update the product's food_cost and derived fields
+    product = await db.products.find_one({"id": product_id}, {"_id": 0})
+    if product:
+        total_food_cost = round(total_food_cost, 2)
+        packaging_cost = product.get('packaging_cost', 0)
+        total_cost = total_food_cost + packaging_cost
+        price = product.get('price', 0)
+        cogs_pct = (total_cost / price * 100) if price > 0 else 0
+        profit = price - total_cost
+        await db.products.update_one(
+            {"id": product_id},
+            {"$set": {
+                "food_cost": total_food_cost,
+                "total_cost": round(total_cost, 2),
+                "cogs_percent": round(cogs_pct, 2),
+                "profit_per_order": round(profit, 2)
+            }}
+        )
+
+    return {"product_id": product_id, "ingredients": processed, "calculated_food_cost": round(total_food_cost, 2)}
+
+# -------- EXPORT --------
+
+@api_router.get("/export/sessions")
+async def export_sessions_csv():
+    from fastapi.responses import StreamingResponse
+    import io, csv
+    sessions = await db.sessions.find({}, {"_id": 0}).sort("date", -1).to_list(1000)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Session ID", "Date", "Market", "Total Units", "Calculated Sales", "Cash", "EFTPOS", "Total Collected", "Variance", "Status", "Food COGS", "Packaging", "Total COGS", "Gross Profit", "COGS %"])
+    for s in sessions:
+        writer.writerow([
+            s.get('session_id'), s.get('date'), s.get('market_name'),
+            s.get('total_units'), s.get('calculated_sales'), s.get('cash'), s.get('eftpos'),
+            s.get('total_collected'), s.get('variance'), s.get('status'),
+            s.get('food_cogs'), s.get('packaging'), s.get('total_cogs'),
+            s.get('gross_profit'), s.get('cogs_percent')
+        ])
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=sessions_export.csv"}
+    )
+
+@api_router.get("/export/products")
+async def export_products_csv():
+    from fastapi.responses import StreamingResponse
+    import io, csv
+    products = await db.products.find({}, {"_id": 0}).to_list(100)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Name", "Code", "Unit", "Price (NZD)", "Food Cost", "Packaging Cost", "Total Cost", "COGS %", "Profit/Order", "Current Stock", "Reorder Point"])
+    for p in products:
+        writer.writerow([
+            p.get('name'), p.get('code'), p.get('unit'), p.get('price'),
+            p.get('food_cost'), p.get('packaging_cost'), p.get('total_cost'),
+            round(p.get('cogs_percent', 0), 2), round(p.get('profit_per_order', 0), 2),
+            p.get('current_stock'), p.get('reorder_point')
+        ])
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=products_export.csv"}
+    )
 
 # -------- SEED DATA --------
 
