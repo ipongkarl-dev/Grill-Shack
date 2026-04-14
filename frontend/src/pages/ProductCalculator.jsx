@@ -25,7 +25,7 @@ const ProductCalculator = () => {
     try {
       const res = await axios.get(`${API}/products`);
       setProducts(res.data);
-    } catch (_e) { /* logged server-side */ }
+    } catch (_e) { toast.error('Failed to load data'); }
     finally { setLoading(false); }
   };
 

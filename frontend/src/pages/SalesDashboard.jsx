@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { API } from "../App";
+import { getCogsBadgeClass, getStatusBadgeClass } from "../lib/chartUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
@@ -54,7 +55,8 @@ const SalesDashboard = () => {
         setMonthlyData(monthlyRes.data);
         setProductPerformance(productRes.data);
         setSessions(sessionsRes.data);
-      } catch (error) {
+      } catch (_err) {
+        toast.error("Failed to load sales data");
       } finally {
         setLoading(false);
       }
@@ -368,11 +370,7 @@ const SalesDashboard = () => {
                         <TableCell className="text-right">
                           <Badge 
                             className={
-                              product.cogs_percent > 35 
-                                ? "bg-red-500/10 text-red-500" 
-                                : product.cogs_percent > 25
-                                ? "bg-amber-500/10 text-amber-500"
-                                : "bg-emerald-500/10 text-emerald-500"
+                              getCogsBadgeClass(product.cogs_percent)
                             }
                           >
                             {product.cogs_percent?.toFixed(1)}%
@@ -440,13 +438,7 @@ const SalesDashboard = () => {
                         <TableCell className="text-right">
                           <Badge 
                             className={
-                              session.status === 'OK' 
-                                ? "bg-emerald-500/10 text-emerald-500" 
-                                : session.status === 'Over-collected'
-                                ? "bg-blue-500/10 text-blue-500"
-                                : session.status === 'Under-collected'
-                                ? "bg-amber-500/10 text-amber-500"
-                                : "bg-red-500/10 text-red-500"
+                              getStatusBadgeClass(session.status)
                             }
                           >
                             {session.status}

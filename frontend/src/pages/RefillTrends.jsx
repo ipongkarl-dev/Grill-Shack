@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { API } from "../App";
@@ -15,7 +16,7 @@ const RefillTrends = () => {
   useEffect(() => {
     axios.get(`${API}/dashboard/refill-trends`)
       .then(r => setData(r.data))
-      .catch(() => {})
+      .catch(() => { toast.error('Failed to load data'); })
       .finally(() => setLoading(false));
   }, []);
 

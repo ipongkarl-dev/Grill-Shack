@@ -29,7 +29,7 @@ const PrepChecklist = () => {
       const initial = {};
       res.data.checklist.forEach(item => { initial[item.product_id] = item.to_prep === 0; });
       setCheckedItems(initial);
-    } catch (_e) { /* logged server-side */ }
+    } catch (_e) { toast.error('Failed to load data'); }
     finally { setLoading(false); }
   };
 

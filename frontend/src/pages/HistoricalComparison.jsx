@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { API } from "../App";
@@ -17,7 +18,7 @@ const HistoricalComparison = () => {
   useEffect(() => {
     axios.get(`${API}/dashboard/historical`)
       .then(r => setData(r.data))
-      .catch(() => {})
+      .catch(() => { toast.error('Failed to load data'); })
       .finally(() => setLoading(false));
   }, []);
 

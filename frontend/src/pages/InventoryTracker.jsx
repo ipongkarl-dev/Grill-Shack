@@ -35,7 +35,7 @@ const InventoryTracker = () => {
       ]);
       setProducts(pRes.data);
       setEntries(eRes.data);
-    } catch (_e) { /* logged server-side */ }
+    } catch (_e) { toast.error('Failed to load data'); }
     finally { setLoading(false); }
   };
 

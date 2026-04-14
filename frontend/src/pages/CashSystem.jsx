@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { API } from "../App";
+import { getStatusBadgeClass } from "../lib/chartUtils";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -47,7 +48,8 @@ const CashSystem = () => {
     try {
       const response = await axios.get(`${API}/sessions?limit=50`);
       setSessions(response.data);
-    } catch (error) {
+    } catch (_err) {
+      toast.error("Failed to load sessions");
     } finally {
       setLoading(false);
     }
@@ -80,7 +82,7 @@ const CashSystem = () => {
       toast.success("Session updated");
       setEditingSession(null);
       fetchSessions();
-    } catch (error) {
+    } catch (_err) {
       toast.error("Failed to update session");
     }
   };
@@ -261,13 +263,7 @@ const CashSystem = () => {
                     <TableCell className="text-center">
                       <Badge 
                         className={
-                          session.status === 'OK' 
-                            ? "bg-emerald-500/10 text-emerald-500" 
-                            : session.status === 'Over-collected'
-                            ? "bg-blue-500/10 text-blue-500"
-                            : session.status === 'Under-collected'
-                            ? "bg-amber-500/10 text-amber-500"
-                            : "bg-red-500/10 text-red-500"
+                          getStatusBadgeClass(session.status)
                         }
                       >
                         {session.status}

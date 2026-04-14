@@ -27,7 +27,7 @@ const SupplierDirectory = () => {
       ]);
       setSuppliers(sRes.data);
       setProducts(pRes.data);
-    } catch (_e) { /* logged server-side */ }
+    } catch (_e) { toast.error('Failed to load data'); }
     finally { setLoading(false); }
   };
 

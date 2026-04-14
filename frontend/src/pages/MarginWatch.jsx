@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import { API } from "../App";
+import { getCogsBadgeClass } from "../lib/chartUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import {
@@ -59,7 +60,8 @@ const MarginWatch = () => {
       try {
         const response = await axios.get(`${API}/dashboard/margin-watch`);
         setMarginData(response.data);
-      } catch (error) {
+      } catch (_err) {
+        toast.error("Failed to load margin data");
       } finally {
         setLoading(false);
       }
@@ -326,11 +328,7 @@ const MarginWatch = () => {
                     <TableCell className="text-right">
                       <Badge 
                         className={
-                          product.cogs_percent > 35 
-                            ? "bg-red-500/10 text-red-500" 
-                            : product.cogs_percent > 25
-                            ? "bg-amber-500/10 text-amber-500"
-                            : "bg-emerald-500/10 text-emerald-500"
+                          getCogsBadgeClass(product.cogs_percent)
                         }
                       >
                         {product.cogs_percent.toFixed(1)}%

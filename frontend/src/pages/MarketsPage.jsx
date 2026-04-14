@@ -22,7 +22,7 @@ const MarketsPage = () => {
     try {
       const res = await axios.get(`${API}/markets`);
       setMarkets(res.data);
-    } catch (_e) { /* logged server-side */ }
+    } catch (_e) { toast.error('Failed to load data'); }
     finally { setLoading(false); }
   };
 

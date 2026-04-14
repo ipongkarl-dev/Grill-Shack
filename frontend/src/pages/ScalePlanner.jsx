@@ -22,7 +22,7 @@ const ScalePlanner = () => {
     try {
       const res = await axios.get(`${API}/dashboard/scale-planner?target_weekly_revenue=${targetRevenue}&weeks_horizon=${weeksHorizon}`);
       setPlan(res.data);
-    } catch (_e) { /* logged server-side */ }
+    } catch (_e) { toast.error('Failed to load data'); }
     finally { setLoading(false); }
   };
 

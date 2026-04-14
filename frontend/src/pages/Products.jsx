@@ -255,7 +255,7 @@ const Products = () => {
     try {
       const response = await axios.get(`${API}/products`);
       setProducts(response.data);
-    } catch (error) {
+    } catch (_err) {
       toast.error("Failed to load products");
     } finally {
       setLoading(false);
@@ -278,7 +278,7 @@ const Products = () => {
       setDialogOpen(false);
       setEditingProduct(null);
       fetchProducts();
-    } catch (error) {
+    } catch (_err) {
       toast.error("Failed to save product");
     }
   };
@@ -290,7 +290,7 @@ const Products = () => {
       await axios.delete(`${API}/products/${id}`);
       toast.success("Product deleted");
       fetchProducts();
-    } catch (error) {
+    } catch (_err) {
       toast.error("Failed to delete product");
     }
   };

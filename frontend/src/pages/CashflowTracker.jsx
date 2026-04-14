@@ -24,7 +24,7 @@ const CashflowTracker = () => {
     try {
       const res = await axios.get(`${API}/cashflow`);
       setTargets(res.data);
-    } catch (_e) { /* logged server-side */ }
+    } catch (_e) { toast.error('Failed to load data'); }
     finally { setLoading(false); }
   };
 

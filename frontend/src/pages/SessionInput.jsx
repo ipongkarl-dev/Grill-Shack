@@ -9,8 +9,7 @@ import { Label } from "../components/ui/label";
 import { Calendar } from "../components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
-import { Textarea } from "../components/ui/textarea";
-import { Badge } from "../components/ui/badge";
+import SessionSummaryPanel from "../components/SessionSummaryPanel";
 import { format } from "date-fns";
 import { CalendarIcon, Plus, Save, Trash2 } from "lucide-react";
 
@@ -69,7 +68,7 @@ const SessionInput = ({ user }) => {
           initialSales[p.id] = 0;
         });
         setSales(initialSales);
-      } catch (error) {
+      } catch (_err) {
         toast.error("Failed to load data");
       } finally {
         setLoading(false);
@@ -182,21 +181,13 @@ const SessionInput = ({ user }) => {
       setExpenseNotes("");
       setNotes("");
       
-    } catch (error) {
+    } catch (_err) {
       toast.error("Failed to save session");
     } finally {
       setSaving(false);
     }
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "OK": return "bg-emerald-500/10 text-emerald-500";
-      case "Over-collected": return "bg-blue-500/10 text-blue-500";
-      case "Under-collected": return "bg-amber-500/10 text-amber-500";
-      default: return "bg-red-500/10 text-red-500";
-    }
-  };
 
   if (loading) {
     return (
@@ -391,75 +382,8 @@ const SessionInput = ({ user }) => {
               Session Summary
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Status Badge */}
-            <div className="flex justify-between items-center">
-              <span className="text-zinc-400">Status</span>
-              <Badge className={getStatusColor(calculations.status)}>
-                {calculations.status}
-              </Badge>
-            </div>
-
-            <div className="border-t border-zinc-800 pt-4 space-y-3">
-              <div className="flex justify-between">
-                <span className="text-zinc-400">Total Units</span>
-                <span className="font-mono text-zinc-200">{calculations.totalUnits}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-zinc-400">Calculated Sales</span>
-                <span className="font-mono text-orange-500 font-semibold">
-                  {formatCurrency(calculations.calculatedSales)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-zinc-400">Total Collected</span>
-                <span className="font-mono text-zinc-200">
-                  {formatCurrency(calculations.totalCollected)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-zinc-400">Variance</span>
-                <span className={`font-mono ${calculations.variance > 0 ? 'text-amber-500' : calculations.variance < 0 ? 'text-blue-500' : 'text-emerald-500'}`}>
-                  {formatCurrency(calculations.variance)}
-                </span>
-              </div>
-            </div>
-
-            <div className="border-t border-zinc-800 pt-4 space-y-3">
-              <div className="flex justify-between">
-                <span className="text-zinc-400">Food COGS</span>
-                <span className="font-mono text-zinc-200">
-                  {formatCurrency(calculations.foodCogs)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-zinc-400">Packaging</span>
-                <span className="font-mono text-zinc-200">
-                  {formatCurrency(calculations.packaging)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-zinc-400">Total COGS</span>
-                <span className="font-mono text-red-400">
-                  {formatCurrency(calculations.totalCogs)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-zinc-400">COGS %</span>
-                <span className="font-mono text-zinc-200">
-                  {calculations.cogsPercent.toFixed(1)}%
-                </span>
-              </div>
-            </div>
-
-            <div className="border-t border-zinc-800 pt-4">
-              <div className="flex justify-between">
-                <span className="text-zinc-400 font-medium">Gross Profit</span>
-                <span className="font-mono text-emerald-500 font-bold text-lg">
-                  {formatCurrency(calculations.grossProfit)}
-                </span>
-              </div>
-            </div>
+          <CardContent>
+            <SessionSummaryPanel calculations={calculations} />
           </CardContent>
         </Card>
       </div>

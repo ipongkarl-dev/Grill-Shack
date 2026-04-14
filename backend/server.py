@@ -1281,6 +1281,65 @@ async def get_scale_planner(
     }
 
 
+def calc_sales_mix(sessions, products, market_id=None):
+    """Calculate historical sales mix percentages per product."""
+    product_totals = {}
+    total_units = 0
+    filtered = [s for s in sessions if not market_id or s.get('market_id') == market_id]
+    for s in filtered:
+        for sale in s.get('sales', []):
+            pid = sale.get('product_id')
+            units = sale.get('units_sold', 0)
+            product_totals[pid] = product_totals.get(pid, 0) + units
+            total_units += units
+    return product_totals, total_units
+
+def build_checklist_items(products, product_totals, total_units, target_revenue):
+    """Build prep checklist items from products and sales mix."""
+    checklist = []
+    total_est_cost = 0
+    for p in products:
+        mix = (product_totals.get(p['id'], 0) / total_units * 100) if total_units > 0 else 10
+        est_orders = int((target_revenue * (mix / 100)) / p['price']) if p['price'] > 0 else 0
+        current = p.get('current_stock', 0)
+        gap = max(0, est_orders - current)
+        cost = gap * p.get('total_cost', 0)
+        total_est_cost += cost
+        checklist.append({
+            'product_id': p['id'], 'product_name': p['name'], 'code': p['code'],
+            'estimated_orders': est_orders, 'current_stock': current, 'to_prep': gap,
+            'unit_cost': p.get('total_cost', 0), 'estimated_cost': round(cost, 2),
+            'status': 'Ready' if gap == 0 else 'Prep Needed', 'checked': False
+        })
+    return checklist, total_est_cost
+
+def accumulate_staff_session(staff_stats, session):
+    """Accumulate a single session into staff stats."""
+    uid = session.get('created_by_id', '')
+    uname = session.get('created_by_name', '') or 'System (Seeded)'
+    urole = session.get('created_by_role', '') or 'system'
+    key = uid or 'system'
+
+    if key not in staff_stats:
+        staff_stats[key] = {
+            'user_id': uid, 'name': uname, 'role': urole,
+            'sessions': 0, 'total_sales': 0, 'total_profit': 0,
+            'total_units': 0, 'total_cogs': 0, 'markets': set(),
+            'best_session_sales': 0, 'best_session_date': '', 'dates': []
+        }
+
+    st = staff_stats[key]
+    st['sessions'] += 1
+    st['total_sales'] += session.get('calculated_sales', 0)
+    st['total_profit'] += session.get('gross_profit', 0)
+    st['total_units'] += session.get('total_units', 0)
+    st['total_cogs'] += session.get('total_cogs', 0)
+    st['markets'].add(session.get('market_name', ''))
+    st['dates'].append(session.get('date', ''))
+    if session.get('calculated_sales', 0) > st['best_session_sales']:
+        st['best_session_sales'] = session.get('calculated_sales', 0)
+        st['best_session_date'] = session.get('date', '')
+
 # -------- DAILY PREP CHECKLIST --------
 
 @api_router.get("/prep-checklist")
@@ -1295,43 +1354,13 @@ async def generate_prep_checklist(market_id: Optional[str] = None, target_revenu
         if m:
             market_name = m['name']
 
-    product_totals = {}
-    total_units = 0
-    filtered = [s for s in sessions if not market_id or s.get('market_id') == market_id]
-    for s in filtered:
-        for sale in s.get('sales', []):
-            pid = sale.get('product_id')
-            units = sale.get('units_sold', 0)
-            product_totals[pid] = product_totals.get(pid, 0) + units
-            total_units += units
+    product_totals, total_units = calc_sales_mix(sessions, products, market_id)
+    checklist, total_est_cost = build_checklist_items(products, product_totals, total_units, target_revenue)
 
-    checklist = []
-    total_est_cost = 0
-    for p in products:
-        mix = (product_totals.get(p['id'], 0) / total_units * 100) if total_units > 0 else 10
-        est_orders = int((target_revenue * (mix / 100)) / p['price']) if p['price'] > 0 else 0
-        current = p.get('current_stock', 0)
-        gap = max(0, est_orders - current)
-        cost = gap * p.get('total_cost', 0)
-        total_est_cost += cost
-        checklist.append({
-            'product_id': p['id'],
-            'product_name': p['name'],
-            'code': p['code'],
-            'estimated_orders': est_orders,
-            'current_stock': current,
-            'to_prep': gap,
-            'unit_cost': p.get('total_cost', 0),
-            'estimated_cost': round(cost, 2),
-            'status': 'Ready' if gap == 0 else 'Prep Needed',
-            'checked': False
-        })
     return {
         'date': datetime.now(timezone.utc).strftime('%Y-%m-%d'),
-        'market_name': market_name,
-        'market_id': market_id,
-        'target_revenue': target_revenue,
-        'checklist': checklist,
+        'market_name': market_name, 'market_id': market_id,
+        'target_revenue': target_revenue, 'checklist': checklist,
         'total_items_to_prep': sum(1 for c in checklist if c['to_prep'] > 0),
         'total_estimated_cost': round(total_est_cost, 2),
         'markets': [{'id': mk['id'], 'name': mk['name']} for mk in markets]
@@ -1384,42 +1413,9 @@ async def get_alerts():
 async def get_staff_performance():
     sessions = await db.sessions.find({}, {"_id": 0}).to_list(1000)
 
-    # Aggregate by user
     staff_stats = {}
     for s in sessions:
-        uid = s.get('created_by_id', '')
-        uname = s.get('created_by_name', '') or 'System (Seeded)'
-        urole = s.get('created_by_role', '') or 'system'
-        key = uid or 'system'
-
-        if key not in staff_stats:
-            staff_stats[key] = {
-                'user_id': uid,
-                'name': uname,
-                'role': urole,
-                'sessions': 0,
-                'total_sales': 0,
-                'total_profit': 0,
-                'total_units': 0,
-                'total_cogs': 0,
-                'markets': set(),
-                'best_session_sales': 0,
-                'best_session_date': '',
-                'dates': []
-            }
-
-        st = staff_stats[key]
-        st['sessions'] += 1
-        st['total_sales'] += s.get('calculated_sales', 0)
-        st['total_profit'] += s.get('gross_profit', 0)
-        st['total_units'] += s.get('total_units', 0)
-        st['total_cogs'] += s.get('total_cogs', 0)
-        st['markets'].add(s.get('market_name', ''))
-        st['dates'].append(s.get('date', ''))
-
-        if s.get('calculated_sales', 0) > st['best_session_sales']:
-            st['best_session_sales'] = s.get('calculated_sales', 0)
-            st['best_session_date'] = s.get('date', '')
+        accumulate_staff_session(staff_stats, s)
 
     result = []
     for key, st in staff_stats.items():

@@ -38,7 +38,7 @@ const QuickMode = ({ user }) => {
         const init = {};
         pRes.data.forEach(p => { init[p.id] = 0; });
         setCounts(init);
-      } catch (_e) { /* logged server-side */ }
+      } catch (_e) { toast.error('Failed to load data'); }
       finally { setLoading(false); }
     };
     fetch();

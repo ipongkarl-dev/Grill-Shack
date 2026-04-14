@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { API } from "../App";
@@ -18,7 +19,7 @@ const MarketComparison = () => {
   useEffect(() => {
     axios.get(`${API}/dashboard/market-comparison`)
       .then(r => setData(r.data))
-      .catch(() => {})
+      .catch(() => { toast.error('Failed to load data'); })
       .finally(() => setLoading(false));
   }, []);
 

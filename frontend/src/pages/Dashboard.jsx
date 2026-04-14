@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import { API } from "../App";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { 
@@ -87,7 +88,8 @@ const Dashboard = () => {
         ]);
         setKpis(kpiRes.data);
         setMonthlyData(monthlyRes.data);
-      } catch (error) {
+      } catch (_err) {
+        toast.error("Failed to load dashboard data");
       } finally {
         setLoading(false);
       }

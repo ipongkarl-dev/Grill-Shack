@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { API } from "../App";
@@ -16,7 +17,7 @@ const WeeklyControl = () => {
   useEffect(() => {
     axios.get(`${API}/dashboard/weekly-control`)
       .then(r => setWeeks(r.data))
-      .catch(() => {})
+      .catch(() => { toast.error('Failed to load data'); })
       .finally(() => setLoading(false));
   }, []);
 
