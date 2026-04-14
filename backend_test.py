@@ -378,6 +378,91 @@ class RestaurantAPITester:
         
         return True
 
+    def test_phase4_endpoints(self):
+        """Test Phase 4 new endpoints: Prep Checklist and Alerts"""
+        print("\n🔥 TESTING PHASE 4 NEW ENDPOINTS")
+        
+        # Test Prep Checklist endpoint
+        success, prep_data = self.run_test("Prep Checklist", "GET", "prep-checklist", 200, params={"target_revenue": 1000})
+        if not success:
+            return False
+        
+        if isinstance(prep_data, dict):
+            expected_fields = ['date', 'market_name', 'target_revenue', 'checklist', 'total_items_to_prep', 'total_estimated_cost', 'markets']
+            missing_fields = [field for field in expected_fields if field not in prep_data]
+            if missing_fields:
+                print(f"❌ Missing fields in prep checklist: {missing_fields}")
+                return False
+            
+            checklist = prep_data.get('checklist', [])
+            print(f"   Generated checklist with {len(checklist)} products")
+            print(f"   Items to prep: {prep_data.get('total_items_to_prep', 0)}")
+            print(f"   Estimated cost: ${prep_data.get('total_estimated_cost', 0)}")
+            
+            # Verify checklist items have required fields
+            if checklist:
+                first_item = checklist[0]
+                item_fields = ['product_id', 'product_name', 'code', 'estimated_orders', 'current_stock', 'to_prep', 'status']
+                missing_item_fields = [field for field in item_fields if field not in first_item]
+                if missing_item_fields:
+                    print(f"❌ Missing fields in checklist items: {missing_item_fields}")
+                    return False
+                print(f"   Sample item: {first_item.get('product_name')} - {first_item.get('status')}")
+        else:
+            print("❌ Prep checklist returned invalid data format")
+            return False
+        
+        # Test Prep Checklist with specific market
+        success, prep_market = self.run_test("Prep Checklist with Market", "GET", "prep-checklist", 200, 
+                                           params={"target_revenue": 1500, "market_id": "test-market"})
+        if success:
+            print(f"   Market-specific checklist: {prep_market.get('market_name', 'Unknown')}")
+        
+        # Test Prep Checklist CSV Export
+        success, _ = self.run_test("Prep Checklist CSV Export", "GET", "export/prep-checklist", 200, 
+                                 params={"target_revenue": 1000})
+        if not success:
+            return False
+        print("   CSV export working correctly")
+        
+        # Test Alerts endpoint
+        success, alerts_data = self.run_test("Alerts", "GET", "alerts", 200)
+        if not success:
+            return False
+        
+        if isinstance(alerts_data, list):
+            print(f"   Found {len(alerts_data)} alerts")
+            
+            # Verify alert structure if alerts exist
+            if alerts_data:
+                first_alert = alerts_data[0]
+                alert_fields = ['id', 'type', 'severity', 'title', 'message']
+                missing_alert_fields = [field for field in alert_fields if field not in first_alert]
+                if missing_alert_fields:
+                    print(f"❌ Missing fields in alerts: {missing_alert_fields}")
+                    return False
+                
+                # Count alerts by type and severity
+                stock_alerts = [a for a in alerts_data if a.get('type') == 'stock']
+                cash_alerts = [a for a in alerts_data if a.get('type') == 'cash']
+                cogs_alerts = [a for a in alerts_data if a.get('type') == 'cogs']
+                critical_alerts = [a for a in alerts_data if a.get('severity') == 'critical']
+                warning_alerts = [a for a in alerts_data if a.get('severity') == 'warning']
+                
+                print(f"   Stock alerts: {len(stock_alerts)}")
+                print(f"   Cash alerts: {len(cash_alerts)}")
+                print(f"   COGS alerts: {len(cogs_alerts)}")
+                print(f"   Critical: {len(critical_alerts)}, Warnings: {len(warning_alerts)}")
+                
+                print(f"   Sample alert: {first_alert.get('title')} ({first_alert.get('severity')})")
+            else:
+                print("   No alerts found (system is healthy)")
+        else:
+            print("❌ Alerts returned invalid data format")
+            return False
+        
+        return True
+
     def test_markets_crud(self):
         """Test markets CRUD operations"""
         print("\n🏪 TESTING MARKETS CRUD")
@@ -426,7 +511,8 @@ class RestaurantAPITester:
             self.test_cashflow_endpoints,
             self.test_product_ingredients_endpoints,
             self.test_export_endpoints,
-            self.test_phase3_endpoints
+            self.test_phase3_endpoints,
+            self.test_phase4_endpoints
         ]
         
         for test in tests:

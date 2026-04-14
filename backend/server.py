@@ -1187,6 +1187,102 @@ async def get_scale_planner(
         'total_sessions': total_sessions
     }
 
+
+# -------- DAILY PREP CHECKLIST --------
+
+@api_router.get("/prep-checklist")
+async def generate_prep_checklist(market_id: Optional[str] = None, target_revenue: float = 1000):
+    products = await db.products.find({}, {"_id": 0}).to_list(100)
+    sessions = await db.sessions.find({}, {"_id": 0}).to_list(1000)
+    markets = await db.markets.find({}, {"_id": 0}).to_list(100)
+
+    market_name = "All Markets"
+    if market_id:
+        m = next((mk for mk in markets if mk['id'] == market_id), None)
+        if m:
+            market_name = m['name']
+
+    product_totals = {}
+    total_units = 0
+    filtered = [s for s in sessions if not market_id or s.get('market_id') == market_id]
+    for s in filtered:
+        for sale in s.get('sales', []):
+            pid = sale.get('product_id')
+            units = sale.get('units_sold', 0)
+            product_totals[pid] = product_totals.get(pid, 0) + units
+            total_units += units
+
+    checklist = []
+    total_est_cost = 0
+    for p in products:
+        mix = (product_totals.get(p['id'], 0) / total_units * 100) if total_units > 0 else 10
+        est_orders = int((target_revenue * (mix / 100)) / p['price']) if p['price'] > 0 else 0
+        current = p.get('current_stock', 0)
+        gap = max(0, est_orders - current)
+        cost = gap * p.get('total_cost', 0)
+        total_est_cost += cost
+        checklist.append({
+            'product_id': p['id'],
+            'product_name': p['name'],
+            'code': p['code'],
+            'estimated_orders': est_orders,
+            'current_stock': current,
+            'to_prep': gap,
+            'unit_cost': p.get('total_cost', 0),
+            'estimated_cost': round(cost, 2),
+            'status': 'Ready' if gap == 0 else 'Prep Needed',
+            'checked': False
+        })
+    return {
+        'date': datetime.now(timezone.utc).strftime('%Y-%m-%d'),
+        'market_name': market_name,
+        'market_id': market_id,
+        'target_revenue': target_revenue,
+        'checklist': checklist,
+        'total_items_to_prep': sum(1 for c in checklist if c['to_prep'] > 0),
+        'total_estimated_cost': round(total_est_cost, 2),
+        'markets': [{'id': mk['id'], 'name': mk['name']} for mk in markets]
+    }
+
+@api_router.get("/export/prep-checklist")
+async def export_prep_checklist_csv(market_id: Optional[str] = None, target_revenue: float = 1000):
+    from fastapi.responses import StreamingResponse
+    import io, csv
+    data = await generate_prep_checklist(market_id, target_revenue)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["GRILL SHACK - Daily Prep Checklist"])
+    writer.writerow([f"Market: {data['market_name']}", f"Date: {data['date']}", f"Target: ${data['target_revenue']}"])
+    writer.writerow([])
+    writer.writerow(["Product", "Code", "Est. Orders", "In Stock", "To Prep", "Unit Cost", "Est. Cost", "Status", "Done?"])
+    for item in data['checklist']:
+        writer.writerow([item['product_name'], item['code'], item['estimated_orders'], item['current_stock'], item['to_prep'], f"${item['unit_cost']:.2f}", f"${item['estimated_cost']:.2f}", item['status'], "[ ]"])
+    writer.writerow([])
+    writer.writerow([f"Total items to prep: {data['total_items_to_prep']}", f"Estimated cost: ${data['total_estimated_cost']:.2f}"])
+    output.seek(0)
+    return StreamingResponse(iter([output.getvalue()]), media_type="text/csv", headers={"Content-Disposition": f"attachment; filename=prep_checklist_{data['date']}.csv"})
+
+# -------- ALERTS --------
+
+@api_router.get("/alerts")
+async def get_alerts():
+    products = await db.products.find({}, {"_id": 0}).to_list(100)
+    sessions = await db.sessions.find({}, {"_id": 0}).sort("date", -1).to_list(20)
+    alerts = []
+    for p in products:
+        if p.get('current_stock', 0) <= p.get('reorder_point', 10):
+            severity = 'critical' if p.get('current_stock', 0) == 0 else 'warning'
+            alerts.append({'id': f"stock-{p['id']}", 'type': 'stock', 'severity': severity, 'title': f"{p['name']} - {'Out of Stock!' if severity == 'critical' else 'Low Stock'}", 'message': f"Current: {p.get('current_stock', 0)} units, Reorder at: {p.get('reorder_point', 10)}", 'product_id': p['id'], 'product_code': p['code']})
+    for s in sessions[:5]:
+        if abs(s.get('variance', 0)) > 50:
+            alerts.append({'id': f"cash-{s['id']}", 'type': 'cash', 'severity': 'warning', 'title': f"Large variance: Session #{s.get('session_id')}", 'message': f"Variance of ${abs(s.get('variance', 0)):.2f} at {s.get('market_name')} on {s.get('date')}", 'session_id': s['id']})
+    for p in products:
+        if p.get('cogs_percent', 0) > 40:
+            alerts.append({'id': f"cogs-{p['id']}", 'type': 'cogs', 'severity': 'info', 'title': f"High COGS: {p['name']}", 'message': f"COGS at {p.get('cogs_percent', 0):.1f}% - review pricing", 'product_id': p['id']})
+    alerts.sort(key=lambda x: {'critical': 0, 'warning': 1, 'info': 2}.get(x['severity'], 3))
+    return alerts
+
+
 # -------- SEED DATA --------
 
 @api_router.post("/seed")

@@ -23,7 +23,9 @@ import {
   GitCompare,
   CalendarRange,
   Receipt,
-  Rocket
+  Rocket,
+  ClipboardCheck,
+  Bell
 } from "lucide-react";
 
 // Pages
@@ -44,6 +46,8 @@ import MarketComparison from "./pages/MarketComparison";
 import WeeklyControl from "./pages/WeeklyControl";
 import RefillTrends from "./pages/RefillTrends";
 import ScalePlanner from "./pages/ScalePlanner";
+import PrepChecklist from "./pages/PrepChecklist";
+import AlertsPage from "./pages/AlertsPage";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
@@ -70,6 +74,8 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
     { path: "/allocation", icon: Calculator, label: "Allocation Tool" },
     { path: "/cashflow", icon: PiggyBank, label: "Cashflow Tracker" },
     { path: "/scale", icon: Rocket, label: "Scale Planner" },
+    { path: "/prep", icon: ClipboardCheck, label: "Prep Checklist" },
+    { path: "/alerts", icon: Bell, label: "Alerts" },
     { path: "/margin", icon: TrendingUp, label: "Margin Watch" },
     { path: "/markets", icon: MapPin, label: "Markets" },
   ];
@@ -227,6 +233,8 @@ function App() {
           <Route path="/weekly" element={<WeeklyControl />} />
           <Route path="/refill" element={<RefillTrends />} />
           <Route path="/scale" element={<ScalePlanner />} />
+          <Route path="/prep" element={<PrepChecklist />} />
+          <Route path="/alerts" element={<AlertsPage />} />
           <Route path="/margin" element={<MarginWatch />} />
           <Route path="/markets" element={<MarketsPage />} />
         </Routes>
