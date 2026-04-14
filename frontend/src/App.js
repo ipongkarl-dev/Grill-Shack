@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BrowserRouter, Routes, Route, NavLink, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import { Toaster } from "./components/ui/sonner";
 import { toast } from "sonner";
@@ -30,7 +30,8 @@ import {
   History,
   LogOut,
   User,
-  UsersRound
+  UsersRound,
+  ShoppingCart
 } from "lucide-react";
 
 // Pages
@@ -57,6 +58,7 @@ import LoginPage from "./pages/LoginPage";
 import SupplierDirectory from "./pages/SupplierDirectory";
 import HistoricalComparison from "./pages/HistoricalComparison";
 import StaffPerformance from "./pages/StaffPerformance";
+import ReorderPage from "./pages/ReorderPage";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
@@ -64,6 +66,8 @@ export const API = `${BACKEND_URL}/api`;
 const LOGO_URL = "https://customer-assets.emergentagent.com/job_kitchen-analytics-4/artifacts/rahsf0cf_Vector%20No%20Background.png";
 
 // Sidebar Navigation
+const OWNER_ONLY = "owner";
+
 const Sidebar = ({ isOpen, setIsOpen, user, onLogout }) => {
   const location = useLocation();
   
@@ -71,8 +75,8 @@ const Sidebar = ({ isOpen, setIsOpen, user, onLogout }) => {
     { path: "/", icon: LayoutDashboard, label: "Dashboard" },
     { path: "/quick", icon: Zap, label: "Quick Mode" },
     { path: "/session", icon: ClipboardList, label: "Session Input" },
-    { path: "/products", icon: Package, label: "Products / COGS" },
-    { path: "/calculator", icon: Beaker, label: "Product Calculator" },
+    { path: "/products", icon: Package, label: "Products / COGS", role: OWNER_ONLY },
+    { path: "/calculator", icon: Beaker, label: "Product Calculator", role: OWNER_ONLY },
     { path: "/sales", icon: BarChart3, label: "Sales Dashboard" },
     { path: "/weekly", icon: CalendarRange, label: "Weekly Control" },
     { path: "/compare", icon: GitCompare, label: "Market Comparison" },
@@ -80,17 +84,20 @@ const Sidebar = ({ isOpen, setIsOpen, user, onLogout }) => {
     { path: "/inventory", icon: Boxes, label: "Inventory Tracker" },
     { path: "/refill", icon: Receipt, label: "Refill Trends" },
     { path: "/cash", icon: DollarSign, label: "Cash System" },
-    { path: "/allocation", icon: Calculator, label: "Allocation Tool" },
-    { path: "/cashflow", icon: PiggyBank, label: "Cashflow Tracker" },
-    { path: "/scale", icon: Rocket, label: "Scale Planner" },
+    { path: "/allocation", icon: Calculator, label: "Allocation Tool", role: OWNER_ONLY },
+    { path: "/cashflow", icon: PiggyBank, label: "Cashflow Tracker", role: OWNER_ONLY },
+    { path: "/scale", icon: Rocket, label: "Scale Planner", role: OWNER_ONLY },
     { path: "/prep", icon: ClipboardCheck, label: "Prep Checklist" },
     { path: "/alerts", icon: Bell, label: "Alerts" },
-    { path: "/margin", icon: TrendingUp, label: "Margin Watch" },
+    { path: "/margin", icon: TrendingUp, label: "Margin Watch", role: OWNER_ONLY },
     { path: "/historical", icon: History, label: "Historical" },
-    { path: "/staff", icon: UsersRound, label: "Staff Performance" },
-    { path: "/suppliers", icon: Truck, label: "Suppliers" },
-    { path: "/markets", icon: MapPin, label: "Markets" },
+    { path: "/staff", icon: UsersRound, label: "Staff Performance", role: OWNER_ONLY },
+    { path: "/suppliers", icon: Truck, label: "Suppliers", role: OWNER_ONLY },
+    { path: "/reorder", icon: ShoppingCart, label: "Auto-Reorder", role: OWNER_ONLY },
+    { path: "/markets", icon: MapPin, label: "Markets", role: OWNER_ONLY },
   ];
+
+  const filteredNavItems = navItems.filter(item => !item.role || user?.role === item.role);
 
   return (
     <>
@@ -115,7 +122,7 @@ const Sidebar = ({ isOpen, setIsOpen, user, onLogout }) => {
         
         {/* Navigation */}
         <nav className="p-4 space-y-1 overflow-y-auto max-h-[calc(100vh-130px)]">
-          {navItems.map((item) => (
+          {filteredNavItems.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
@@ -195,6 +202,14 @@ const Layout = ({ children, user, onLogout }) => {
   );
 };
 
+// Route guard for owner-only pages
+const OwnerRoute = ({ user, children }) => {
+  if (user?.role !== 'owner') {
+    return <Navigate to="/" replace />;
+  }
+  return children;
+};
+
 function App() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
@@ -255,8 +270,8 @@ function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/quick" element={<QuickMode user={user} />} />
           <Route path="/session" element={<SessionInput user={user} />} />
-          <Route path="/products" element={<Products />} />
-          <Route path="/calculator" element={<ProductCalculator />} />
+          <Route path="/products" element={<OwnerRoute user={user}><Products /></OwnerRoute>} />
+          <Route path="/calculator" element={<OwnerRoute user={user}><ProductCalculator /></OwnerRoute>} />
           <Route path="/sales" element={<SalesDashboard />} />
           <Route path="/weekly" element={<WeeklyControl />} />
           <Route path="/compare" element={<MarketComparison />} />
@@ -264,16 +279,17 @@ function App() {
           <Route path="/inventory" element={<InventoryTracker />} />
           <Route path="/refill" element={<RefillTrends />} />
           <Route path="/cash" element={<CashSystem />} />
-          <Route path="/allocation" element={<AllocationTool />} />
-          <Route path="/cashflow" element={<CashflowTracker />} />
-          <Route path="/scale" element={<ScalePlanner />} />
+          <Route path="/allocation" element={<OwnerRoute user={user}><AllocationTool /></OwnerRoute>} />
+          <Route path="/cashflow" element={<OwnerRoute user={user}><CashflowTracker /></OwnerRoute>} />
+          <Route path="/scale" element={<OwnerRoute user={user}><ScalePlanner /></OwnerRoute>} />
           <Route path="/prep" element={<PrepChecklist />} />
           <Route path="/alerts" element={<AlertsPage />} />
-          <Route path="/margin" element={<MarginWatch />} />
+          <Route path="/margin" element={<OwnerRoute user={user}><MarginWatch /></OwnerRoute>} />
           <Route path="/historical" element={<HistoricalComparison />} />
-          <Route path="/staff" element={<StaffPerformance />} />
-          <Route path="/suppliers" element={<SupplierDirectory />} />
-          <Route path="/markets" element={<MarketsPage />} />
+          <Route path="/staff" element={<OwnerRoute user={user}><StaffPerformance /></OwnerRoute>} />
+          <Route path="/suppliers" element={<OwnerRoute user={user}><SupplierDirectory /></OwnerRoute>} />
+          <Route path="/reorder" element={<OwnerRoute user={user}><ReorderPage /></OwnerRoute>} />
+          <Route path="/markets" element={<OwnerRoute user={user}><MarketsPage /></OwnerRoute>} />
         </Routes>
       </Layout>
     </BrowserRouter>

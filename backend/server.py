@@ -79,6 +79,14 @@ async def get_current_user(request: Request) -> dict:
     except pyjwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
+
+async def require_owner(request: Request) -> dict:
+    """Get current user and verify they have owner role."""
+    user = await get_current_user(request)
+    if user.get("role") != "owner":
+        raise HTTPException(status_code=403, detail="Owner access required")
+    return user
+
 async def seed_admin():
     admin_email = os.environ.get("ADMIN_EMAIL", "owner@grillshack.nz").lower()
     admin_password = os.environ.get("ADMIN_PASSWORD", "GrillShack2026!")
@@ -483,7 +491,8 @@ async def get_product(product_id: str):
     return product
 
 @api_router.post("/products", response_model=Product)
-async def create_product(input: ProductCreate):
+async def create_product(input: ProductCreate, request: Request):
+    await require_owner(request)
     product = Product(
         name=input.name,
         code=input.code,
@@ -501,7 +510,8 @@ async def create_product(input: ProductCreate):
     return product
 
 @api_router.put("/products/{product_id}", response_model=Product)
-async def update_product(product_id: str, input: ProductUpdate):
+async def update_product(product_id: str, input: ProductUpdate, request: Request):
+    await require_owner(request)
     update_data = {k: v for k, v in input.model_dump().items() if v is not None}
     if not update_data:
         raise HTTPException(status_code=400, detail="No data to update")
@@ -525,7 +535,8 @@ async def update_product(product_id: str, input: ProductUpdate):
     return updated
 
 @api_router.delete("/products/{product_id}")
-async def delete_product(product_id: str):
+async def delete_product(product_id: str, request: Request):
+    await require_owner(request)
     result = await db.products.delete_one({"id": product_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -539,13 +550,15 @@ async def get_markets():
     return markets
 
 @api_router.post("/markets", response_model=Market)
-async def create_market(input: MarketCreate):
+async def create_market(input: MarketCreate, request: Request):
+    await require_owner(request)
     market = Market(name=input.name, preset_mix=input.preset_mix)
     await db.markets.insert_one(market.model_dump())
     return market
 
 @api_router.put("/markets/{market_id}")
-async def update_market(market_id: str, input: MarketCreate):
+async def update_market(market_id: str, input: MarketCreate, request: Request):
+    await require_owner(request)
     result = await db.markets.update_one(
         {"id": market_id},
         {"$set": {"name": input.name, "preset_mix": input.preset_mix}}
@@ -555,7 +568,8 @@ async def update_market(market_id: str, input: MarketCreate):
     return {"message": "Market updated"}
 
 @api_router.delete("/markets/{market_id}")
-async def delete_market(market_id: str):
+async def delete_market(market_id: str, request: Request):
+    await require_owner(request)
     result = await db.markets.delete_one({"id": market_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Market not found")
@@ -908,7 +922,8 @@ async def get_allocation_settings():
     return settings
 
 @api_router.put("/allocation/settings", response_model=AllocationSettings)
-async def update_allocation_settings(input: AllocationSettingsUpdate):
+async def update_allocation_settings(input: AllocationSettingsUpdate, request: Request):
+    await require_owner(request)
     update_data = {k: v for k, v in input.model_dump().items() if v is not None}
     await db.allocation_settings.update_one(
         {"id": "default"},
@@ -1118,7 +1133,8 @@ async def get_product_ingredients(product_id: str):
     return doc
 
 @api_router.put("/products/{product_id}/ingredients")
-async def update_product_ingredients(product_id: str, input: ProductIngredientsUpdate):
+async def update_product_ingredients(product_id: str, input: ProductIngredientsUpdate, request: Request):
+    await require_owner(request)
     # Calculate total food cost from ingredients
     total_food_cost = 0
     processed = []
@@ -1656,7 +1672,8 @@ async def get_suppliers():
     return suppliers
 
 @api_router.post("/suppliers")
-async def create_supplier(input: SupplierCreate):
+async def create_supplier(input: SupplierCreate, request: Request):
+    await require_owner(request)
     doc = {
         "id": str(uuid.uuid4()), "name": input.name,
         "contact_person": input.contact_person, "phone": input.phone,
@@ -1669,7 +1686,8 @@ async def create_supplier(input: SupplierCreate):
     return doc
 
 @api_router.put("/suppliers/{supplier_id}")
-async def update_supplier(supplier_id: str, input: SupplierCreate):
+async def update_supplier(supplier_id: str, input: SupplierCreate, request: Request):
+    await require_owner(request)
     result = await db.suppliers.update_one({"id": supplier_id}, {"$set": {
         "name": input.name, "contact_person": input.contact_person,
         "phone": input.phone, "email": input.email,
@@ -1680,10 +1698,109 @@ async def update_supplier(supplier_id: str, input: SupplierCreate):
     return {"message": "Updated"}
 
 @api_router.delete("/suppliers/{supplier_id}")
-async def delete_supplier(supplier_id: str):
+async def delete_supplier(supplier_id: str, request: Request):
+    await require_owner(request)
     result = await db.suppliers.delete_one({"id": supplier_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Supplier not found")
+    return {"message": "Deleted"}
+
+# -------- AUTO-REORDER / PURCHASE ORDERS --------
+
+class PurchaseOrderItem(BaseModel):
+    product_id: str
+    product_name: str
+    qty_needed: int
+    unit_cost: float = 0
+    estimated_cost: float = 0
+
+class PurchaseOrderCreate(BaseModel):
+    supplier_id: str
+    supplier_name: str
+    items: List[dict]
+    notes: str = ""
+
+@api_router.get("/reorder/suggestions")
+async def get_reorder_suggestions(request: Request):
+    await require_owner(request)
+    products = await db.products.find({}, {"_id": 0}).to_list(100)
+    suppliers = await db.suppliers.find({}, {"_id": 0}).to_list(100)
+
+    suggestions = []
+    for p in products:
+        current = p.get('current_stock', 0)
+        reorder_pt = p.get('reorder_point', 0)
+        if current < reorder_pt:
+            qty_needed = max(reorder_pt * 2 - current, reorder_pt)
+            unit_cost = p.get('food_cost', 0) + p.get('packaging_cost', 0)
+            # Find linked supplier
+            linked_supplier = None
+            for s in suppliers:
+                if p.get('code') in (s.get('products') or []):
+                    linked_supplier = {"id": s['id'], "name": s['name']}
+                    break
+            suggestions.append({
+                "product_id": p['id'],
+                "product_name": p['name'],
+                "code": p['code'],
+                "current_stock": current,
+                "reorder_point": reorder_pt,
+                "qty_needed": qty_needed,
+                "unit_cost": round(unit_cost, 2),
+                "estimated_cost": round(qty_needed * unit_cost, 2),
+                "linked_supplier": linked_supplier,
+            })
+    return suggestions
+
+@api_router.post("/reorder/purchase-orders")
+async def create_purchase_order(input: PurchaseOrderCreate, request: Request):
+    user = await require_owner(request)
+    total = sum(item.get('estimated_cost', 0) for item in input.items)
+    po = {
+        "id": str(uuid.uuid4()),
+        "po_number": f"PO-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M')}",
+        "supplier_id": input.supplier_id,
+        "supplier_name": input.supplier_name,
+        "items": input.items,
+        "total_estimated": round(total, 2),
+        "status": "pending",
+        "notes": input.notes,
+        "created_by": user.get("name", user.get("email", "")),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.purchase_orders.insert_one(po)
+    po.pop('_id', None)
+    return po
+
+@api_router.get("/reorder/purchase-orders")
+async def get_purchase_orders(request: Request, status: Optional[str] = None):
+    await require_owner(request)
+    query = {}
+    if status:
+        query["status"] = status
+    orders = await db.purchase_orders.find(query, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return orders
+
+@api_router.put("/reorder/purchase-orders/{po_id}/status")
+async def update_po_status(po_id: str, request: Request, new_status: str = Query(...)):
+    await require_owner(request)
+    if new_status not in ("pending", "ordered", "received", "cancelled"):
+        raise HTTPException(status_code=400, detail="Invalid status")
+    result = await db.purchase_orders.update_one(
+        {"id": po_id},
+        {"$set": {"status": new_status, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Purchase order not found")
+    return {"message": f"Status updated to {new_status}"}
+
+@api_router.delete("/reorder/purchase-orders/{po_id}")
+async def delete_purchase_order(po_id: str, request: Request):
+    await require_owner(request)
+    result = await db.purchase_orders.delete_one({"id": po_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Purchase order not found")
     return {"message": "Deleted"}
 
 # -------- HISTORICAL COMPARISON --------
