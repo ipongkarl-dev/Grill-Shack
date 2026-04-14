@@ -521,6 +521,139 @@ class RestaurantAPITester:
         
         return True
 
+    def test_staff_performance_endpoint(self):
+        """Test staff performance endpoint (Phase 6)"""
+        print("\n👥 TESTING STAFF PERFORMANCE ENDPOINT")
+        
+        success, staff_data = self.run_test("Staff Performance", "GET", "dashboard/staff-performance", 200)
+        if not success:
+            return False
+        
+        if isinstance(staff_data, list):
+            print(f"   Found {len(staff_data)} staff members")
+            
+            # Verify staff performance structure if data exists
+            if staff_data:
+                first_staff = staff_data[0]
+                expected_fields = ['user_id', 'name', 'role', 'sessions', 'total_sales', 'total_profit', 
+                                 'total_units', 'avg_session_revenue', 'cogs_percent', 'markets_worked', 
+                                 'best_session_sales', 'best_session_date']
+                missing_fields = [field for field in expected_fields if field not in first_staff]
+                if missing_fields:
+                    print(f"❌ Missing fields in staff performance: {missing_fields}")
+                    return False
+                
+                print(f"   Top performer: {first_staff.get('name')} ({first_staff.get('role')})")
+                print(f"   Total sales: ${first_staff.get('total_sales', 0)}")
+                print(f"   Sessions: {first_staff.get('sessions', 0)}")
+                print(f"   Markets worked: {len(first_staff.get('markets_worked', []))}")
+                print(f"   Best session: ${first_staff.get('best_session_sales', 0)}")
+                
+                # Check if we have both system and user-created sessions
+                system_staff = [s for s in staff_data if s.get('name') == 'System (Seeded)']
+                user_staff = [s for s in staff_data if s.get('name') != 'System (Seeded)']
+                
+                print(f"   System sessions: {len(system_staff)}")
+                print(f"   User-created sessions: {len(user_staff)}")
+                
+            else:
+                print("   No staff performance data found")
+        else:
+            print("❌ Staff performance returned invalid data format")
+            return False
+        
+        return True
+
+    def test_session_user_attribution(self):
+        """Test that session creation stores user info (created_by fields)"""
+        print("\n📝 TESTING SESSION USER ATTRIBUTION")
+        
+        # Get products and markets first
+        success, products = self.run_test("Get Products for Session", "GET", "products", 200)
+        if not success or not products:
+            print("❌ Cannot get products for session test")
+            return False
+            
+        success, markets = self.run_test("Get Markets for Session", "GET", "markets", 200)
+        if not success or not markets:
+            print("❌ Cannot get markets for session test")
+            return False
+        
+        # Create a test session with user attribution
+        test_session = {
+            "date": "2026-08-15",
+            "market_id": markets[0]['id'],
+            "market_name": markets[0]['name'],
+            "cash": 150.0,
+            "eftpos": 200.0,
+            "sales": [
+                {
+                    "product_id": products[0]['id'],
+                    "units_sold": 5
+                },
+                {
+                    "product_id": products[1]['id'],
+                    "units_sold": 3
+                }
+            ],
+            "opening_float": 50.0,
+            "cash_expenses": 10.0,
+            "expense_notes": "Parking fee",
+            "notes": "Test session for user attribution",
+            "created_by_id": "test-user-123",
+            "created_by_name": "Test User",
+            "created_by_role": "staff"
+        }
+        
+        success, created_session = self.run_test("Create Session with User Attribution", "POST", "sessions", 200, data=test_session)
+        if not success:
+            return False
+        
+        # Verify the session was created with user attribution
+        session_id = created_session.get('id')
+        if not session_id:
+            print("❌ No session ID returned")
+            return False
+            
+        # Get the created session and verify user attribution fields
+        success, session_details = self.run_test("Get Created Session", "GET", f"sessions/{session_id}", 200)
+        if not success:
+            return False
+        
+        # Check user attribution fields
+        created_by_id = session_details.get('created_by_id')
+        created_by_name = session_details.get('created_by_name')
+        created_by_role = session_details.get('created_by_role')
+        
+        if created_by_id != test_session['created_by_id']:
+            print(f"❌ created_by_id mismatch: expected {test_session['created_by_id']}, got {created_by_id}")
+            return False
+            
+        if created_by_name != test_session['created_by_name']:
+            print(f"❌ created_by_name mismatch: expected {test_session['created_by_name']}, got {created_by_name}")
+            return False
+            
+        if created_by_role != test_session['created_by_role']:
+            print(f"❌ created_by_role mismatch: expected {test_session['created_by_role']}, got {created_by_role}")
+            return False
+        
+        print(f"   ✅ Session created with user attribution:")
+        print(f"   Created by: {created_by_name} (ID: {created_by_id}, Role: {created_by_role})")
+        print(f"   Session ID: {session_details.get('session_id')}")
+        print(f"   Market: {session_details.get('market_name')}")
+        print(f"   Sales: ${session_details.get('calculated_sales', 0)}")
+        
+        # Verify this session now appears in staff performance
+        success, updated_staff_data = self.run_test("Staff Performance After Session", "GET", "dashboard/staff-performance", 200)
+        if success:
+            test_user_stats = next((s for s in updated_staff_data if s.get('user_id') == 'test-user-123'), None)
+            if test_user_stats:
+                print(f"   ✅ Test user now appears in staff performance with {test_user_stats.get('sessions', 0)} sessions")
+            else:
+                print("   ⚠️  Test user not found in staff performance (may need time to update)")
+        
+        return True
+
     def test_phase4_endpoints(self):
         """Test Phase 4 new endpoints: Prep Checklist and Alerts"""
         print("\n🔥 TESTING PHASE 4 NEW ENDPOINTS")
@@ -662,7 +795,9 @@ class RestaurantAPITester:
             self.test_phase3_endpoints,
             self.test_phase4_endpoints,
             self.test_supplier_endpoints,
-            self.test_historical_comparison_endpoint
+            self.test_historical_comparison_endpoint,
+            self.test_staff_performance_endpoint,
+            self.test_session_user_attribution
         ]
         
         for test in tests:

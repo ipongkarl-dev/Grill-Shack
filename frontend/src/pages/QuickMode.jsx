@@ -14,7 +14,7 @@ import { CalendarIcon, Minus, Plus, Send, RotateCcw, Zap } from "lucide-react";
 
 const formatCurrency = (v) => new Intl.NumberFormat('en-NZ', { style: 'currency', currency: 'NZD' }).format(v);
 
-const QuickMode = () => {
+const QuickMode = ({ user }) => {
   const [products, setProducts] = useState([]);
   const [markets, setMarkets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -78,6 +78,9 @@ const QuickMode = () => {
         cash: parseFloat(cash) || 0,
         eftpos: parseFloat(eftpos) || 0,
         sales: salesList,
+        created_by_id: user?.id || "",
+        created_by_name: user?.name || "",
+        created_by_role: user?.role || ""
       });
       toast.success("Session saved!");
       reset();

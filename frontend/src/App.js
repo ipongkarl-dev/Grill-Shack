@@ -29,7 +29,8 @@ import {
   Truck,
   History,
   LogOut,
-  User
+  User,
+  UsersRound
 } from "lucide-react";
 
 // Pages
@@ -55,6 +56,7 @@ import AlertsPage from "./pages/AlertsPage";
 import LoginPage from "./pages/LoginPage";
 import SupplierDirectory from "./pages/SupplierDirectory";
 import HistoricalComparison from "./pages/HistoricalComparison";
+import StaffPerformance from "./pages/StaffPerformance";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
@@ -85,6 +87,7 @@ const Sidebar = ({ isOpen, setIsOpen, user, onLogout }) => {
     { path: "/alerts", icon: Bell, label: "Alerts" },
     { path: "/margin", icon: TrendingUp, label: "Margin Watch" },
     { path: "/historical", icon: History, label: "Historical" },
+    { path: "/staff", icon: UsersRound, label: "Staff Performance" },
     { path: "/suppliers", icon: Truck, label: "Suppliers" },
     { path: "/markets", icon: MapPin, label: "Markets" },
   ];
@@ -250,8 +253,8 @@ function App() {
       <Layout user={user} onLogout={handleLogout}>
         <Routes>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/quick" element={<QuickMode />} />
-          <Route path="/session" element={<SessionInput />} />
+          <Route path="/quick" element={<QuickMode user={user} />} />
+          <Route path="/session" element={<SessionInput user={user} />} />
           <Route path="/products" element={<Products />} />
           <Route path="/calculator" element={<ProductCalculator />} />
           <Route path="/sales" element={<SalesDashboard />} />
@@ -268,6 +271,7 @@ function App() {
           <Route path="/alerts" element={<AlertsPage />} />
           <Route path="/margin" element={<MarginWatch />} />
           <Route path="/historical" element={<HistoricalComparison />} />
+          <Route path="/staff" element={<StaffPerformance />} />
           <Route path="/suppliers" element={<SupplierDirectory />} />
           <Route path="/markets" element={<MarketsPage />} />
         </Routes>

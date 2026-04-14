@@ -22,7 +22,7 @@ const formatCurrency = (value) => {
   }).format(value);
 };
 
-const SessionInput = () => {
+const SessionInput = ({ user }) => {
   const [products, setProducts] = useState([]);
   const [markets, setMarkets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -165,7 +165,10 @@ const SessionInput = () => {
         cash_expenses: parseFloat(cashExpenses) || 0,
         expense_notes: expenseNotes,
         notes: notes,
-        sales: salesList
+        sales: salesList,
+        created_by_id: user?.id || "",
+        created_by_name: user?.name || "",
+        created_by_role: user?.role || ""
       });
 
       toast.success("Session saved successfully!");

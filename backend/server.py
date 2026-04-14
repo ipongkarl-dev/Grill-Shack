@@ -196,6 +196,9 @@ class Session(BaseModel):
     cash_expenses: float = 0
     expense_notes: str = ""
     notes: str = ""
+    created_by_id: str = ""
+    created_by_name: str = ""
+    created_by_role: str = ""
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class SessionCreate(BaseModel):
@@ -209,6 +212,9 @@ class SessionCreate(BaseModel):
     cash_expenses: float = 0
     expense_notes: str = ""
     notes: str = ""
+    created_by_id: str = ""
+    created_by_name: str = ""
+    created_by_role: str = ""
 
 class AllocationSettings(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -525,7 +531,10 @@ async def create_session(input: SessionCreate):
         opening_float=input.opening_float,
         cash_expenses=input.cash_expenses,
         expense_notes=input.expense_notes,
-        notes=input.notes
+        notes=input.notes,
+        created_by_id=input.created_by_id,
+        created_by_name=input.created_by_name,
+        created_by_role=input.created_by_role
     )
     
     doc = session.model_dump()
@@ -1352,6 +1361,79 @@ async def get_alerts():
             alerts.append({'id': f"cogs-{p['id']}", 'type': 'cogs', 'severity': 'info', 'title': f"High COGS: {p['name']}", 'message': f"COGS at {p.get('cogs_percent', 0):.1f}% - review pricing", 'product_id': p['id']})
     alerts.sort(key=lambda x: {'critical': 0, 'warning': 1, 'info': 2}.get(x['severity'], 3))
     return alerts
+
+
+
+# -------- STAFF PERFORMANCE --------
+
+@api_router.get("/dashboard/staff-performance")
+async def get_staff_performance():
+    sessions = await db.sessions.find({}, {"_id": 0}).to_list(1000)
+    users = await db.users.find({}, {"_id": 0, "password_hash": 0}).to_list(100)
+
+    # Build user lookup
+    user_map = {u['id']: u for u in users}
+
+    # Aggregate by user
+    staff_stats = {}
+    for s in sessions:
+        uid = s.get('created_by_id', '')
+        uname = s.get('created_by_name', '') or 'System (Seeded)'
+        urole = s.get('created_by_role', '') or 'system'
+        key = uid or 'system'
+
+        if key not in staff_stats:
+            staff_stats[key] = {
+                'user_id': uid,
+                'name': uname,
+                'role': urole,
+                'sessions': 0,
+                'total_sales': 0,
+                'total_profit': 0,
+                'total_units': 0,
+                'total_cogs': 0,
+                'markets': set(),
+                'best_session_sales': 0,
+                'best_session_date': '',
+                'dates': []
+            }
+
+        st = staff_stats[key]
+        st['sessions'] += 1
+        st['total_sales'] += s.get('calculated_sales', 0)
+        st['total_profit'] += s.get('gross_profit', 0)
+        st['total_units'] += s.get('total_units', 0)
+        st['total_cogs'] += s.get('total_cogs', 0)
+        st['markets'].add(s.get('market_name', ''))
+        st['dates'].append(s.get('date', ''))
+
+        if s.get('calculated_sales', 0) > st['best_session_sales']:
+            st['best_session_sales'] = s.get('calculated_sales', 0)
+            st['best_session_date'] = s.get('date', '')
+
+    result = []
+    for key, st in staff_stats.items():
+        avg_session = st['total_sales'] / st['sessions'] if st['sessions'] > 0 else 0
+        cogs_pct = (st['total_cogs'] / st['total_sales'] * 100) if st['total_sales'] > 0 else 0
+        result.append({
+            'user_id': st['user_id'],
+            'name': st['name'],
+            'role': st['role'],
+            'sessions': st['sessions'],
+            'total_sales': round(st['total_sales'], 2),
+            'total_profit': round(st['total_profit'], 2),
+            'total_units': st['total_units'],
+            'total_cogs': round(st['total_cogs'], 2),
+            'avg_session_revenue': round(avg_session, 2),
+            'cogs_percent': round(cogs_pct, 2),
+            'markets_worked': list(st['markets']),
+            'best_session_sales': round(st['best_session_sales'], 2),
+            'best_session_date': st['best_session_date'],
+            'first_session': min(st['dates']) if st['dates'] else '',
+            'last_session': max(st['dates']) if st['dates'] else ''
+        })
+    result.sort(key=lambda x: x['total_sales'], reverse=True)
+    return result
 
 
 # -------- AUTH ENDPOINTS --------
