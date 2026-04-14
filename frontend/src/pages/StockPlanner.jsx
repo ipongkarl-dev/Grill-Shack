@@ -104,12 +104,12 @@ const StockPlanner = () => {
           <div className="flex flex-col sm:flex-row gap-4 items-end">
             <div className="flex-1 space-y-2">
               <Label className="text-zinc-400">Target Market (Optional)</Label>
-              <Select value={selectedMarket} onValueChange={setSelectedMarket}>
+              <Select value={selectedMarket || "all"} onValueChange={(v) => setSelectedMarket(v === "all" ? "" : v)}>
                 <SelectTrigger className="bg-zinc-800 border-zinc-700" data-testid="market-filter">
                   <SelectValue placeholder="All Markets" />
                 </SelectTrigger>
                 <SelectContent className="bg-zinc-900 border-zinc-800">
-                  <SelectItem value="">All Markets</SelectItem>
+                  <SelectItem value="all">All Markets</SelectItem>
                   {markets.map(market => (
                     <SelectItem key={market.id} value={market.id}>
                       {market.name}
