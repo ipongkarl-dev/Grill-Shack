@@ -1,4 +1,5 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Query
+from fastapi import FastAPI, APIRouter, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -8,8 +9,10 @@ from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict, Any
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from bson import ObjectId
+import bcrypt
+import jwt as pyjwt
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -31,6 +34,74 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# ===================== AUTH HELPERS =====================
+
+JWT_ALGORITHM = "HS256"
+
+def get_jwt_secret():
+    return os.environ.get("JWT_SECRET", "fallback-secret-key")
+
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+def verify_password(plain: str, hashed: str) -> bool:
+    return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+
+def create_access_token(user_id: str, email: str, role: str) -> str:
+    payload = {"sub": user_id, "email": email, "role": role, "exp": datetime.now(timezone.utc) + timedelta(hours=24), "type": "access"}
+    return pyjwt.encode(payload, get_jwt_secret(), algorithm=JWT_ALGORITHM)
+
+def create_refresh_token(user_id: str) -> str:
+    payload = {"sub": user_id, "exp": datetime.now(timezone.utc) + timedelta(days=7), "type": "refresh"}
+    return pyjwt.encode(payload, get_jwt_secret(), algorithm=JWT_ALGORITHM)
+
+async def get_current_user(request: Request) -> dict:
+    token = request.cookies.get("access_token")
+    if not token:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        payload = pyjwt.decode(token, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
+        if payload.get("type") != "access":
+            raise HTTPException(status_code=401, detail="Invalid token type")
+        user_id = payload["sub"]
+        user = await db.users.find_one({"id": user_id}, {"_id": 0})
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
+        user.pop("password_hash", None)
+        return user
+    except pyjwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except pyjwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+async def seed_admin():
+    admin_email = os.environ.get("ADMIN_EMAIL", "owner@grillshack.nz").lower()
+    admin_password = os.environ.get("ADMIN_PASSWORD", "GrillShack2026!")
+    existing = await db.users.find_one({"email": admin_email}, {"_id": 0})
+    if not existing:
+        user_id = str(uuid.uuid4())
+        await db.users.insert_one({
+            "id": user_id, "email": admin_email, "name": "Owner",
+            "password_hash": hash_password(admin_password),
+            "role": "owner", "created_at": datetime.now(timezone.utc).isoformat()
+        })
+        logger.info(f"Admin seeded: {admin_email}")
+    elif not verify_password(admin_password, existing.get("password_hash", "")):
+        await db.users.update_one({"email": admin_email}, {"$set": {"password_hash": hash_password(admin_password)}})
+    # Write test credentials
+    try:
+        creds_path = Path("/app/memory/test_credentials.md")
+        creds_path.parent.mkdir(exist_ok=True)
+        creds_path.write_text(f"# Auth Credentials\n## Owner\n- Email: {admin_email}\n- Password: {admin_password}\n- Role: owner\n\n## Staff (create via app)\n- Role: staff\n")
+    except Exception:
+        pass
+
+
 
 # ===================== MODELS =====================
 
@@ -1283,6 +1354,193 @@ async def get_alerts():
     return alerts
 
 
+# -------- AUTH ENDPOINTS --------
+
+class LoginInput(BaseModel):
+    email: str
+    password: str
+
+class RegisterInput(BaseModel):
+    email: str
+    password: str
+    name: str
+    role: str = "staff"
+
+@api_router.post("/auth/login")
+async def login(input: LoginInput):
+    email = input.email.strip().lower()
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user or not verify_password(input.password, user.get("password_hash", "")):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    token = create_access_token(user["id"], email, user.get("role", "staff"))
+    refresh = create_refresh_token(user["id"])
+    response = JSONResponse(content={
+        "id": user["id"], "email": user["email"], "name": user.get("name", ""),
+        "role": user.get("role", "staff"), "token": token
+    })
+    response.set_cookie(key="access_token", value=token, httponly=True, secure=False, samesite="lax", max_age=86400, path="/")
+    response.set_cookie(key="refresh_token", value=refresh, httponly=True, secure=False, samesite="lax", max_age=604800, path="/")
+    return response
+
+@api_router.post("/auth/register")
+async def register(input: RegisterInput):
+    email = input.email.strip().lower()
+    existing = await db.users.find_one({"email": email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    user_id = str(uuid.uuid4())
+    await db.users.insert_one({
+        "id": user_id, "email": email, "name": input.name,
+        "password_hash": hash_password(input.password),
+        "role": input.role if input.role in ["owner", "staff"] else "staff",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    token = create_access_token(user_id, email, input.role)
+    refresh = create_refresh_token(user_id)
+    response = JSONResponse(content={
+        "id": user_id, "email": email, "name": input.name, "role": input.role, "token": token
+    })
+    response.set_cookie(key="access_token", value=token, httponly=True, secure=False, samesite="lax", max_age=86400, path="/")
+    response.set_cookie(key="refresh_token", value=refresh, httponly=True, secure=False, samesite="lax", max_age=604800, path="/")
+    return response
+
+@api_router.get("/auth/me")
+async def get_me(request: Request):
+    user = await get_current_user(request)
+    return user
+
+@api_router.post("/auth/logout")
+async def logout():
+    response = JSONResponse(content={"message": "Logged out"})
+    response.delete_cookie("access_token", path="/")
+    response.delete_cookie("refresh_token", path="/")
+    return response
+
+@api_router.get("/auth/users")
+async def get_users(request: Request):
+    user = await get_current_user(request)
+    if user.get("role") != "owner":
+        raise HTTPException(status_code=403, detail="Owner only")
+    users = await db.users.find({}, {"_id": 0, "password_hash": 0}).to_list(100)
+    return users
+
+# -------- SUPPLIER DIRECTORY --------
+
+class SupplierCreate(BaseModel):
+    name: str
+    contact_person: str = ""
+    phone: str = ""
+    email: str = ""
+    address: str = ""
+    products: List[str] = []
+    notes: str = ""
+
+@api_router.get("/suppliers")
+async def get_suppliers():
+    suppliers = await db.suppliers.find({}, {"_id": 0}).to_list(100)
+    return suppliers
+
+@api_router.post("/suppliers")
+async def create_supplier(input: SupplierCreate):
+    doc = {
+        "id": str(uuid.uuid4()), "name": input.name,
+        "contact_person": input.contact_person, "phone": input.phone,
+        "email": input.email, "address": input.address,
+        "products": input.products, "notes": input.notes,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.suppliers.insert_one(doc)
+    doc.pop('_id', None)
+    return doc
+
+@api_router.put("/suppliers/{supplier_id}")
+async def update_supplier(supplier_id: str, input: SupplierCreate):
+    result = await db.suppliers.update_one({"id": supplier_id}, {"$set": {
+        "name": input.name, "contact_person": input.contact_person,
+        "phone": input.phone, "email": input.email,
+        "address": input.address, "products": input.products, "notes": input.notes
+    }})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    return {"message": "Updated"}
+
+@api_router.delete("/suppliers/{supplier_id}")
+async def delete_supplier(supplier_id: str):
+    result = await db.suppliers.delete_one({"id": supplier_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    return {"message": "Deleted"}
+
+# -------- HISTORICAL COMPARISON --------
+
+@api_router.get("/dashboard/historical")
+async def get_historical_comparison():
+    sessions = await db.sessions.find({}, {"_id": 0}).to_list(1000)
+    from datetime import date as dt_date
+
+    # Group by week
+    week_data = {}
+    for s in sessions:
+        try:
+            parts = s.get('date', '').split('-')
+            d = dt_date(int(parts[0]), int(parts[1]), int(parts[2]))
+            iso = d.isocalendar()
+            wk = f"{iso[0]}-W{iso[1]:02d}"
+        except:
+            continue
+        if wk not in week_data:
+            week_data[wk] = {'sales': 0, 'profit': 0, 'units': 0, 'sessions': 0, 'cogs': 0}
+        week_data[wk]['sales'] += s.get('calculated_sales', 0)
+        week_data[wk]['profit'] += s.get('gross_profit', 0)
+        week_data[wk]['units'] += s.get('total_units', 0)
+        week_data[wk]['sessions'] += 1
+        week_data[wk]['cogs'] += s.get('total_cogs', 0)
+
+    # Group by month
+    month_data = {}
+    for s in sessions:
+        m = s.get('date', '')[:7]
+        if not m:
+            continue
+        if m not in month_data:
+            month_data[m] = {'sales': 0, 'profit': 0, 'units': 0, 'sessions': 0, 'cogs': 0}
+        month_data[m]['sales'] += s.get('calculated_sales', 0)
+        month_data[m]['profit'] += s.get('gross_profit', 0)
+        month_data[m]['units'] += s.get('total_units', 0)
+        month_data[m]['sessions'] += 1
+        month_data[m]['cogs'] += s.get('total_cogs', 0)
+
+    # Calc WoW and MoM growth
+    sorted_weeks = sorted(week_data.keys())
+    wow = []
+    for i, wk in enumerate(sorted_weeks):
+        d = week_data[wk]
+        prev = week_data[sorted_weeks[i-1]] if i > 0 else None
+        growth = ((d['sales'] - prev['sales']) / prev['sales'] * 100) if prev and prev['sales'] > 0 else 0
+        wow.append({
+            'period': wk, 'sales': round(d['sales'], 2), 'profit': round(d['profit'], 2),
+            'units': d['units'], 'sessions': d['sessions'],
+            'cogs': round(d['cogs'], 2),
+            'growth_pct': round(growth, 1)
+        })
+
+    sorted_months = sorted(month_data.keys())
+    mom = []
+    for i, m in enumerate(sorted_months):
+        d = month_data[m]
+        prev = month_data[sorted_months[i-1]] if i > 0 else None
+        growth = ((d['sales'] - prev['sales']) / prev['sales'] * 100) if prev and prev['sales'] > 0 else 0
+        mom.append({
+            'period': m, 'sales': round(d['sales'], 2), 'profit': round(d['profit'], 2),
+            'units': d['units'], 'sessions': d['sessions'],
+            'cogs': round(d['cogs'], 2),
+            'growth_pct': round(growth, 1)
+        })
+
+    return {"week_over_week": wow, "month_over_month": mom}
+
+
+
 # -------- SEED DATA --------
 
 @api_router.post("/seed")
@@ -1400,6 +1658,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+async def startup_event():
+    await seed_admin()
+    await db.users.create_index("email", unique=True)
 
 @app.on_event("shutdown")
 async def shutdown_db_client():

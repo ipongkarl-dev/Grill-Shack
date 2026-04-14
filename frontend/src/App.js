@@ -25,7 +25,11 @@ import {
   Receipt,
   Rocket,
   ClipboardCheck,
-  Bell
+  Bell,
+  Truck,
+  History,
+  LogOut,
+  User
 } from "lucide-react";
 
 // Pages
@@ -48,6 +52,9 @@ import RefillTrends from "./pages/RefillTrends";
 import ScalePlanner from "./pages/ScalePlanner";
 import PrepChecklist from "./pages/PrepChecklist";
 import AlertsPage from "./pages/AlertsPage";
+import LoginPage from "./pages/LoginPage";
+import SupplierDirectory from "./pages/SupplierDirectory";
+import HistoricalComparison from "./pages/HistoricalComparison";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
@@ -55,7 +62,7 @@ export const API = `${BACKEND_URL}/api`;
 const LOGO_URL = "https://customer-assets.emergentagent.com/job_kitchen-analytics-4/artifacts/rahsf0cf_Vector%20No%20Background.png";
 
 // Sidebar Navigation
-const Sidebar = ({ isOpen, setIsOpen }) => {
+const Sidebar = ({ isOpen, setIsOpen, user, onLogout }) => {
   const location = useLocation();
   
   const navItems = [
@@ -77,6 +84,8 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
     { path: "/prep", icon: ClipboardCheck, label: "Prep Checklist" },
     { path: "/alerts", icon: Bell, label: "Alerts" },
     { path: "/margin", icon: TrendingUp, label: "Margin Watch" },
+    { path: "/historical", icon: History, label: "Historical" },
+    { path: "/suppliers", icon: Truck, label: "Suppliers" },
     { path: "/markets", icon: MapPin, label: "Markets" },
   ];
 
@@ -125,9 +134,25 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
         </nav>
         
         {/* Footer */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-zinc-800">
-          <div className="text-xs text-zinc-500 text-center">
-            Grill Shack Management v1.0
+        <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-zinc-800">
+          {user && (
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-full bg-orange-500/10 flex items-center justify-center flex-shrink-0">
+                  <User className="w-4 h-4 text-orange-500" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-zinc-300 truncate">{user.name || user.email}</p>
+                  <p className="text-xs text-zinc-600 capitalize">{user.role}</p>
+                </div>
+              </div>
+              <button onClick={onLogout} className="p-1.5 hover:bg-zinc-800 rounded-lg" data-testid="logout-btn">
+                <LogOut className="w-4 h-4 text-zinc-500" />
+              </button>
+            </div>
+          )}
+          <div className="text-xs text-zinc-600 text-center">
+            Grill Shack v2.0
           </div>
         </div>
       </aside>
@@ -136,12 +161,12 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
 };
 
 // Main Layout
-const Layout = ({ children }) => {
+const Layout = ({ children, user, onLogout }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   
   return (
     <div className="min-h-screen bg-zinc-950">
-      <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
+      <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} user={user} onLogout={onLogout} />
       
       {/* Mobile header */}
       <header className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-zinc-950 border-b border-zinc-800 z-30 flex items-center px-4">
@@ -169,54 +194,60 @@ const Layout = ({ children }) => {
 
 function App() {
   const [loading, setLoading] = useState(true);
-  const [seeded, setSeeded] = useState(false);
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
     const initApp = async () => {
       try {
-        // Check if data exists
+        const meRes = await axios.get(`${API}/auth/me`, { withCredentials: true }).catch(() => null);
+        if (meRes?.data?.id) setUser(meRes.data);
         const response = await axios.get(`${API}/products`);
         if (response.data.length === 0) {
-          // Seed initial data
           await axios.post(`${API}/seed`);
-          setSeeded(true);
           toast.success("Initial data loaded from Excel!");
         }
       } catch (error) {
-        console.error("Error initializing app:", error);
-        toast.error("Failed to connect to server");
+        console.error("Init error:", error);
       } finally {
         setLoading(false);
       }
     };
-
     initApp();
   }, []);
+
+  const handleLogin = (userData) => {
+    setUser(userData);
+    if (userData.token) axios.defaults.headers.common['Authorization'] = `Bearer ${userData.token}`;
+  };
+
+  const handleLogout = async () => {
+    try { await axios.post(`${API}/auth/logout`, {}, { withCredentials: true }); } catch (e) {}
+    setUser(null);
+    delete axios.defaults.headers.common['Authorization'];
+    toast.success("Logged out");
+  };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-        <div className="text-center">
-          <Flame className="w-16 h-16 text-orange-500 mx-auto animate-pulse" />
-          <p className="mt-4 text-zinc-400 font-medium">Loading Grill Shack...</p>
-        </div>
+        <Flame className="w-16 h-16 text-orange-500 animate-pulse" />
       </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <>
+        <Toaster position="top-right" toastOptions={{ style: { background: 'hsl(0 0% 9%)', border: '1px solid hsl(0 0% 14.9%)', color: 'hsl(0 0% 98%)' } }} />
+        <LoginPage onLogin={handleLogin} />
+      </>
     );
   }
 
   return (
     <BrowserRouter>
-      <Toaster 
-        position="top-right" 
-        toastOptions={{
-          style: {
-            background: 'hsl(0 0% 9%)',
-            border: '1px solid hsl(0 0% 14.9%)',
-            color: 'hsl(0 0% 98%)',
-          },
-        }}
-      />
-      <Layout>
+      <Toaster position="top-right" toastOptions={{ style: { background: 'hsl(0 0% 9%)', border: '1px solid hsl(0 0% 14.9%)', color: 'hsl(0 0% 98%)' } }} />
+      <Layout user={user} onLogout={handleLogout}>
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/quick" element={<QuickMode />} />
@@ -224,18 +255,20 @@ function App() {
           <Route path="/products" element={<Products />} />
           <Route path="/calculator" element={<ProductCalculator />} />
           <Route path="/sales" element={<SalesDashboard />} />
+          <Route path="/weekly" element={<WeeklyControl />} />
+          <Route path="/compare" element={<MarketComparison />} />
           <Route path="/stock" element={<StockPlanner />} />
           <Route path="/inventory" element={<InventoryTracker />} />
+          <Route path="/refill" element={<RefillTrends />} />
           <Route path="/cash" element={<CashSystem />} />
           <Route path="/allocation" element={<AllocationTool />} />
           <Route path="/cashflow" element={<CashflowTracker />} />
-          <Route path="/compare" element={<MarketComparison />} />
-          <Route path="/weekly" element={<WeeklyControl />} />
-          <Route path="/refill" element={<RefillTrends />} />
           <Route path="/scale" element={<ScalePlanner />} />
           <Route path="/prep" element={<PrepChecklist />} />
           <Route path="/alerts" element={<AlertsPage />} />
           <Route path="/margin" element={<MarginWatch />} />
+          <Route path="/historical" element={<HistoricalComparison />} />
+          <Route path="/suppliers" element={<SupplierDirectory />} />
           <Route path="/markets" element={<MarketsPage />} />
         </Routes>
       </Layout>

@@ -12,11 +12,17 @@ class RestaurantAPITester:
         self.tests_run = 0
         self.tests_passed = 0
         self.failed_tests = []
+        self.auth_token = None
+        self.session = requests.Session()
 
-    def run_test(self, name, method, endpoint, expected_status, data=None, params=None):
+    def run_test(self, name, method, endpoint, expected_status, data=None, params=None, auth_required=True):
         """Run a single API test"""
         url = f"{self.api_url}/{endpoint}"
         headers = {'Content-Type': 'application/json'}
+        
+        # Add auth header if token is available and auth is required
+        if auth_required and self.auth_token:
+            headers['Authorization'] = f'Bearer {self.auth_token}'
 
         self.tests_run += 1
         print(f"\n🔍 Testing {name}...")
@@ -24,13 +30,13 @@ class RestaurantAPITester:
         
         try:
             if method == 'GET':
-                response = requests.get(url, headers=headers, params=params, timeout=10)
+                response = self.session.get(url, headers=headers, params=params, timeout=10)
             elif method == 'POST':
-                response = requests.post(url, json=data, headers=headers, timeout=10)
+                response = self.session.post(url, json=data, headers=headers, timeout=10)
             elif method == 'PUT':
-                response = requests.put(url, json=data, headers=headers, timeout=10)
+                response = self.session.put(url, json=data, headers=headers, timeout=10)
             elif method == 'DELETE':
-                response = requests.delete(url, headers=headers, timeout=10)
+                response = self.session.delete(url, headers=headers, timeout=10)
 
             success = response.status_code == expected_status
             if success:
@@ -64,9 +70,54 @@ class RestaurantAPITester:
             print(f"❌ Failed - Error: {str(e)}")
             return False, {}
 
+    def test_auth_endpoints(self):
+        """Test authentication endpoints"""
+        print("\n🔐 TESTING AUTHENTICATION ENDPOINTS")
+        
+        # Test login with correct credentials
+        login_data = {
+            "email": "owner@grillshack.nz",
+            "password": "GrillShack2026!"
+        }
+        success, login_response = self.run_test("Login", "POST", "auth/login", 200, data=login_data, auth_required=False)
+        if not success:
+            print("❌ Login failed - cannot continue with authenticated tests")
+            return False
+            
+        # Store the token for subsequent requests
+        self.auth_token = login_response.get('token')
+        if not self.auth_token:
+            print("❌ No token received from login")
+            return False
+            
+        print(f"   Logged in as: {login_response.get('name')} ({login_response.get('role')})")
+        
+        # Test /auth/me endpoint
+        success, me_response = self.run_test("Get Current User", "GET", "auth/me", 200)
+        if not success:
+            return False
+            
+        print(f"   Current user: {me_response.get('name')} - {me_response.get('email')}")
+        
+        # Test register endpoint (should work for staff)
+        register_data = {
+            "email": f"test_staff_{datetime.now().strftime('%H%M%S')}@grillshack.nz",
+            "password": "TestPass123!",
+            "name": "Test Staff",
+            "role": "staff"
+        }
+        success, register_response = self.run_test("Register Staff", "POST", "auth/register", 200, data=register_data, auth_required=False)
+        if success:
+            print(f"   Registered: {register_response.get('name')} ({register_response.get('role')})")
+        
+        # Test logout
+        success, _ = self.run_test("Logout", "POST", "auth/logout", 200)
+        
+        return True
+
     def test_root_endpoint(self):
         """Test API root endpoint"""
-        return self.run_test("API Root", "GET", "", 200)
+        return self.run_test("API Root", "GET", "", 200, auth_required=False)
 
     def test_products_endpoints(self):
         """Test all product-related endpoints"""
@@ -378,11 +429,102 @@ class RestaurantAPITester:
         
         return True
 
+    def test_supplier_endpoints(self):
+        """Test supplier directory endpoints"""
+        print("\n🚚 TESTING SUPPLIER DIRECTORY ENDPOINTS")
+        
+        # Get all suppliers
+        success, suppliers = self.run_test("Get All Suppliers", "GET", "suppliers", 200)
+        if not success:
+            return False
+            
+        print(f"   Found {len(suppliers)} suppliers")
+        
+        # Create a new supplier
+        test_supplier = {
+            "name": "Test Supplier Ltd",
+            "contact_person": "John Smith",
+            "phone": "+64 21 123 4567",
+            "email": "orders@testsupplier.co.nz",
+            "address": "Auckland, NZ",
+            "products": ["BB", "BR", "WS"],
+            "notes": "Test supplier for API testing"
+        }
+        success, created = self.run_test("Create Supplier", "POST", "suppliers", 200, data=test_supplier)
+        if not success:
+            return False
+            
+        supplier_id = created.get('id')
+        print(f"   Created supplier: {created.get('name')} (ID: {supplier_id})")
+        
+        # Update the supplier
+        update_data = {
+            "name": "Updated Test Supplier Ltd",
+            "contact_person": "Jane Smith",
+            "phone": "+64 21 987 6543",
+            "email": "orders@updatedtestsupplier.co.nz",
+            "address": "Wellington, NZ",
+            "products": ["BB", "BR", "WS", "SM"],
+            "notes": "Updated test supplier"
+        }
+        success, _ = self.run_test("Update Supplier", "PUT", f"suppliers/{supplier_id}", 200, data=update_data)
+        if not success:
+            return False
+            
+        # Delete the supplier
+        success, _ = self.run_test("Delete Supplier", "DELETE", f"suppliers/{supplier_id}", 200)
+        return success
+
+    def test_historical_comparison_endpoint(self):
+        """Test historical comparison endpoint"""
+        print("\n📈 TESTING HISTORICAL COMPARISON ENDPOINT")
+        
+        success, historical_data = self.run_test("Historical Comparison", "GET", "dashboard/historical", 200)
+        if not success:
+            return False
+        
+        if isinstance(historical_data, dict):
+            expected_fields = ['week_over_week', 'month_over_month']
+            missing_fields = [field for field in expected_fields if field not in historical_data]
+            if missing_fields:
+                print(f"❌ Missing fields in historical comparison: {missing_fields}")
+                return False
+            
+            wow = historical_data.get('week_over_week', [])
+            mom = historical_data.get('month_over_month', [])
+            
+            print(f"   Week-over-week data: {len(wow)} periods")
+            print(f"   Month-over-month data: {len(mom)} periods")
+            
+            # Verify structure of WoW data
+            if wow:
+                first_week = wow[0]
+                week_fields = ['period', 'sales', 'profit', 'units', 'sessions', 'cogs', 'growth_pct']
+                missing_week_fields = [field for field in week_fields if field not in first_week]
+                if missing_week_fields:
+                    print(f"❌ Missing fields in WoW data: {missing_week_fields}")
+                    return False
+                print(f"   Sample week: {first_week.get('period')} - ${first_week.get('sales', 0)} sales, {first_week.get('growth_pct', 0)}% growth")
+            
+            # Verify structure of MoM data
+            if mom:
+                first_month = mom[0]
+                month_fields = ['period', 'sales', 'profit', 'units', 'sessions', 'cogs', 'growth_pct']
+                missing_month_fields = [field for field in month_fields if field not in first_month]
+                if missing_month_fields:
+                    print(f"❌ Missing fields in MoM data: {missing_month_fields}")
+                    return False
+                print(f"   Sample month: {first_month.get('period')} - ${first_month.get('sales', 0)} sales, {first_month.get('growth_pct', 0)}% growth")
+        else:
+            print("❌ Historical comparison returned invalid data format")
+            return False
+        
+        return True
+
     def test_phase4_endpoints(self):
         """Test Phase 4 new endpoints: Prep Checklist and Alerts"""
         print("\n🔥 TESTING PHASE 4 NEW ENDPOINTS")
         
-        # Test Prep Checklist endpoint
         success, prep_data = self.run_test("Prep Checklist", "GET", "prep-checklist", 200, params={"target_revenue": 1000})
         if not success:
             return False
@@ -497,6 +639,12 @@ class RestaurantAPITester:
         print("🚀 Starting Restaurant Management API Tests")
         print(f"Testing against: {self.base_url}")
         
+        # Test authentication first
+        auth_success = self.test_auth_endpoints()
+        if not auth_success:
+            print("❌ Authentication failed - cannot continue with protected endpoints")
+            return False
+        
         # Test all endpoints
         tests = [
             self.test_root_endpoint,
@@ -512,7 +660,9 @@ class RestaurantAPITester:
             self.test_product_ingredients_endpoints,
             self.test_export_endpoints,
             self.test_phase3_endpoints,
-            self.test_phase4_endpoints
+            self.test_phase4_endpoints,
+            self.test_supplier_endpoints,
+            self.test_historical_comparison_endpoint
         ]
         
         for test in tests:
