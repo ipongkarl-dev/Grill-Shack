@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { API } from "../App";
+import { getPctBadgeClass, BAR_RADIUS } from "../lib/chartUtils";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -20,6 +21,7 @@ const CashflowTracker = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ month: "", sales_target: "", growth_saved: "", emergency_saved: "", notes: "" });
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchData = useCallback(async () => {
     try {
       const res = await axios.get(`${API}/cashflow`);
@@ -195,8 +197,8 @@ const CashflowTracker = () => {
                   <XAxis dataKey="month" stroke="#71717a" tick={{ fill: '#a1a1aa', fontSize: 12 }} />
                   <YAxis stroke="#71717a" tick={{ fill: '#a1a1aa', fontSize: 12 }} tickFormatter={v => `$${v / 1000}k`} />
                   <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }} formatter={v => formatCurrency(v)} />
-                  <Bar dataKey="target" name="Target" fill="#f97316" opacity={0.4} radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="actual" name="Actual" fill="#10b981" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="target" name="Target" fill="#f97316" opacity={0.4} radius={BAR_RADIUS} />
+                  <Bar dataKey="actual" name="Actual" fill="#10b981" radius={BAR_RADIUS} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -243,7 +245,7 @@ const CashflowTracker = () => {
                         <span className={variance >= 0 ? 'text-emerald-500' : 'text-red-500'}>{formatCurrency(variance)}</span>
                       </TableCell>
                       <TableCell className="text-center">
-                        <Badge className={pct >= 100 ? 'bg-emerald-500/10 text-emerald-500' : pct >= 75 ? 'bg-amber-500/10 text-amber-500' : 'bg-red-500/10 text-red-500'}>
+                        <Badge className={getPctBadgeClass(pct)}>
                           {pct.toFixed(0)}%
                         </Badge>
                       </TableCell>

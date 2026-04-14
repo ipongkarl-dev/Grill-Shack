@@ -12,6 +12,7 @@ const AlertsPage = () => {
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchAlerts = useCallback(async () => {
     setLoading(true);
     try {

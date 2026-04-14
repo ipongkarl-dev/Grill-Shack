@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import { API } from "../App";
+import { BAR_RADIUS } from "../lib/chartUtils";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -79,6 +80,7 @@ const Dashboard = () => {
   const [monthlyData, setMonthlyData] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchData = useCallback(async () => {
       try {
         const [kpiRes, monthlyRes] = await Promise.all([
@@ -189,8 +191,8 @@ const Dashboard = () => {
                     }}
                     formatter={(value) => [formatCurrency(value), '']}
                   />
-                  <Bar dataKey="sales" name="Sales" fill="#f97316" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="profit" name="Profit" fill="#10b981" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="sales" name="Sales" fill="#f97316" radius={BAR_RADIUS} />
+                  <Bar dataKey="profit" name="Profit" fill="#10b981" radius={BAR_RADIUS} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

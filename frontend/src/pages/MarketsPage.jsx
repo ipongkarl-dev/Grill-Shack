@@ -18,6 +18,7 @@ const MarketsPage = () => {
   const [editing, setEditing] = useState(null);
   const [name, setName] = useState("");
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchMarkets = useCallback(async () => {
     try {
       const res = await axios.get(`${API}/markets`);

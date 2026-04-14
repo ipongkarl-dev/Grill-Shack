@@ -52,6 +52,7 @@ const SessionInput = ({ user }) => {
     cogsPercent: 0
   });
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchInitialData = useCallback(async () => {
       try {
         const [productsRes, marketsRes] = await Promise.all([

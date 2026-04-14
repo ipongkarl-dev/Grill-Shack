@@ -2,7 +2,7 @@ import { toast } from "sonner";
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { API } from "../App";
-import { CHART_TOOLTIP_STYLE, CHART_AXIS_TICK, CHART_AXIS_TICK_SM, CHART_GRID_STROKE, CHART_AXIS_STROKE } from "../lib/chartUtils";
+import { CHART_TOOLTIP_STYLE, CHART_AXIS_TICK, CHART_AXIS_TICK_SM, CHART_GRID_STROKE, CHART_AXIS_STROKE, BAR_RADIUS } from "../lib/chartUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
@@ -100,8 +100,8 @@ const MarketComparison = () => {
                   <YAxis stroke={CHART_AXIS_STROKE} tick={CHART_AXIS_TICK} tickFormatter={v => `$${v / 1000}k`} />
                   <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={v => fmt(v)} />
                   <Legend />
-                  <Bar dataKey="total_sales" name="Revenue" fill="#f97316" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="total_profit" name="Profit" fill="#10b981" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="total_sales" name="Revenue" fill="#f97316" radius={BAR_RADIUS} />
+                  <Bar dataKey="total_profit" name="Profit" fill="#10b981" radius={BAR_RADIUS} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

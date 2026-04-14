@@ -50,6 +50,7 @@ const AllocationTool = () => {
   const [calculating, setCalculating] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchSettings = useCallback(async () => {
       try {
         const response = await axios.get(`${API}/allocation/settings`);

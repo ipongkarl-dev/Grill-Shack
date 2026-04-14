@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import { API } from "../App";
-import { getCogsBadgeClass } from "../lib/chartUtils";
+import { getCogsBadgeClass, getCogsChartColor, getProfitChartColor, getActionLink, BAR_RADIUS_HORIZONTAL } from "../lib/chartUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import {
@@ -55,6 +55,7 @@ const MarginWatch = () => {
   const [marginData, setMarginData] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchData = useCallback(async () => {
       try {
         const response = await axios.get(`${API}/dashboard/margin-watch`);
@@ -219,11 +220,11 @@ const MarginWatch = () => {
                     }}
                     formatter={(value) => [formatCurrency(value), 'Profit']}
                   />
-                  <Bar dataKey="profit" radius={[0, 4, 4, 0]}>
+                  <Bar dataKey="profit" radius={BAR_RADIUS_HORIZONTAL}>
                     {chartData.map((entry, index) => (
                       <Cell 
                         key={`cell-${index}`} 
-                        fill={entry.profit > 500 ? '#10b981' : entry.profit > 200 ? '#f97316' : '#ef4444'} 
+                        fill={getProfitChartColor(entry.profit)} 
                       />
                     ))}
                   </Bar>
@@ -267,11 +268,11 @@ const MarginWatch = () => {
                     }}
                     formatter={(value) => [`${value.toFixed(1)}%`, 'COGS']}
                   />
-                  <Bar dataKey="cogs_percent" radius={[0, 4, 4, 0]}>
+                  <Bar dataKey="cogs_percent" radius={BAR_RADIUS_HORIZONTAL}>
                     {marginData.map((entry, index) => (
                       <Cell 
                         key={`cell-${index}`} 
-                        fill={entry.cogs_percent > 35 ? '#ef4444' : entry.cogs_percent > 25 ? '#f97316' : '#10b981'} 
+                        fill={getCogsChartColor(entry.cogs_percent)} 
                       />
                     ))}
                   </Bar>
@@ -354,7 +355,7 @@ const MarginWatch = () => {
                     </TableCell>
                     <TableCell className="text-center">
                       <Link
-                        to={product.action === 'CHECK PRICE' ? '/products' : product.action === 'PROMOTE' ? '/products' : '/calculator'}
+                        to={getActionLink(product.action)}
                         data-testid={`action-${product.code}`}
                       >
                         <Badge className={`border cursor-pointer hover:opacity-80 transition-opacity ${getActionColor(product.action)}`}>

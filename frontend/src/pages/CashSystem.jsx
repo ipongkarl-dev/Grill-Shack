@@ -1,20 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { API } from "../App";
-import { getStatusBadgeClass } from "../lib/chartUtils";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { Badge } from "../components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "../components/ui/table";
+import { CashSessionsTable } from "../components/CashWidgets";
 import {
   Dialog,
   DialogContent,
@@ -22,7 +13,7 @@ import {
   DialogTitle,
 } from "../components/ui/dialog";
 import { Label } from "../components/ui/label";
-import { DollarSign, CreditCard, Banknote, AlertCircle, CheckCircle, Pencil, Trash2 } from "lucide-react";
+import { DollarSign, CreditCard, Banknote, AlertCircle, CheckCircle } from "lucide-react";
 
 const formatCurrency = (value) => {
   return new Intl.NumberFormat('en-NZ', {
@@ -44,6 +35,7 @@ const CashSystem = () => {
     expense_notes: ""
   });
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchSessions = useCallback(async () => {
     try {
       const response = await axios.get(`${API}/sessions?limit=50`);
@@ -209,90 +201,10 @@ const CashSystem = () => {
       {/* Sessions Table */}
       <Card className="bg-zinc-900 border-zinc-800">
         <CardHeader>
-          <CardTitle className="text-lg font-heading text-zinc-50">
-            Session Cash Reconciliation
-          </CardTitle>
+          <CardTitle className="text-lg font-heading text-zinc-50">Session Cash Reconciliation</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-zinc-800 hover:bg-transparent">
-                  <TableHead className="text-zinc-400">Session</TableHead>
-                  <TableHead className="text-zinc-400">Market</TableHead>
-                  <TableHead className="text-zinc-400 text-right">Cash</TableHead>
-                  <TableHead className="text-zinc-400 text-right">EFTPOS</TableHead>
-                  <TableHead className="text-zinc-400 text-right">Calculated</TableHead>
-                  <TableHead className="text-zinc-400 text-right">Collected</TableHead>
-                  <TableHead className="text-zinc-400 text-right">Variance</TableHead>
-                  <TableHead className="text-zinc-400 text-right">Expenses</TableHead>
-                  <TableHead className="text-zinc-400 text-center">Status</TableHead>
-                  <TableHead className="text-zinc-400 text-center">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sessions.map((session) => (
-                  <TableRow 
-                    key={session.id} 
-                    className="border-zinc-800 hover:bg-zinc-800/50"
-                  >
-                    <TableCell>
-                      <div>
-                        <p className="font-mono text-zinc-200">#{session.session_id}</p>
-                        <p className="text-xs text-zinc-500">{session.date}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-zinc-300">
-                      {session.market_name}
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-emerald-400">
-                      {formatCurrency(session.cash)}
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-blue-400">
-                      {formatCurrency(session.eftpos)}
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-zinc-300">
-                      {formatCurrency(session.calculated_sales)}
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-zinc-200">
-                      {formatCurrency(session.total_collected)}
-                    </TableCell>
-                    <TableCell className="text-right font-mono">
-                      <span className={
-                        session.variance > 0.5 ? 'text-red-500' : 
-                        session.variance < -0.5 ? 'text-blue-500' : 
-                        'text-emerald-500'
-                      }>
-                        {formatCurrency(session.variance)}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-zinc-400">
-                      {formatCurrency(session.cash_expenses)}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge 
-                        className={
-                          getStatusBadgeClass(session.status)
-                        }
-                      >
-                        {session.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <div className="flex justify-center gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => openEdit(session)} className="text-zinc-400 hover:text-zinc-200" data-testid={`edit-session-${session.session_id}`}>
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleDeleteSession(session.id)} className="text-zinc-400 hover:text-red-500" data-testid={`delete-session-${session.session_id}`}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <CashSessionsTable sessions={sessions} onEdit={openEdit} onDelete={handleDeleteSession} />
         </CardContent>
       </Card>
 

@@ -2,7 +2,7 @@ import { toast } from "sonner";
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { API } from "../App";
-import { CHART_TOOLTIP_STYLE, CHART_AXIS_TICK, CHART_AXIS_TICK_SM, CHART_GRID_STROKE, CHART_AXIS_STROKE } from "../lib/chartUtils";
+import { CHART_TOOLTIP_STYLE, CHART_AXIS_TICK, CHART_AXIS_TICK_SM, CHART_GRID_STROKE, CHART_AXIS_STROKE, CHART_DOT_ORANGE, CHART_DOT_GREEN, BAR_RADIUS, getGrowthColor } from "../lib/chartUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
@@ -104,8 +104,8 @@ const HistoricalComparison = () => {
                       <YAxis stroke={CHART_AXIS_STROKE} tick={CHART_AXIS_TICK} tickFormatter={v => `$${v / 1000}k`} />
                       <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={v => fmt(v)} />
                       <Legend />
-                      <Line type="monotone" dataKey="sales" name="Sales" stroke="#f97316" strokeWidth={2} dot={{ fill: '#f97316', r: 4 }} />
-                      <Line type="monotone" dataKey="profit" name="Profit" stroke="#10b981" strokeWidth={2} dot={{ fill: '#10b981', r: 4 }} />
+                      <Line type="monotone" dataKey="sales" name="Sales" stroke="#f97316" strokeWidth={2} dot={CHART_DOT_ORANGE} />
+                      <Line type="monotone" dataKey="profit" name="Profit" stroke="#10b981" strokeWidth={2} dot={CHART_DOT_GREEN} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -123,9 +123,9 @@ const HistoricalComparison = () => {
                       <YAxis stroke={CHART_AXIS_STROKE} tick={CHART_AXIS_TICK} tickFormatter={v => `${v}%`} />
                       <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={v => `${v}%`} />
                       <ReferenceLine y={0} stroke="#52525b" />
-                      <Bar dataKey="growth_pct" name="Growth %" radius={[4, 4, 0, 0]}>
+                      <Bar dataKey="growth_pct" name="Growth %" radius={BAR_RADIUS}>
                         {wow.map((d, i) => (
-                          <Cell key={`wow-${d.period}`} fill={d.growth_pct >= 0 ? '#10b981' : '#ef4444'} />
+                          <Cell key={`wow-${d.period}`} fill={getGrowthColor(d.growth_pct)} />
                         ))}
                       </Bar>
                     </BarChart>
@@ -185,8 +185,8 @@ const HistoricalComparison = () => {
                       <YAxis stroke={CHART_AXIS_STROKE} tick={CHART_AXIS_TICK} tickFormatter={v => `$${v / 1000}k`} />
                       <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={v => fmt(v)} />
                       <Legend />
-                      <Bar dataKey="sales" name="Sales" fill="#f97316" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="profit" name="Profit" fill="#10b981" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="sales" name="Sales" fill="#f97316" radius={BAR_RADIUS} />
+                      <Bar dataKey="profit" name="Profit" fill="#10b981" radius={BAR_RADIUS} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -204,9 +204,9 @@ const HistoricalComparison = () => {
                       <YAxis stroke={CHART_AXIS_STROKE} tick={CHART_AXIS_TICK} tickFormatter={v => `${v}%`} />
                       <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={v => `${v}%`} />
                       <ReferenceLine y={0} stroke="#52525b" />
-                      <Bar dataKey="growth_pct" name="Growth %" radius={[4, 4, 0, 0]}>
+                      <Bar dataKey="growth_pct" name="Growth %" radius={BAR_RADIUS}>
                         {mom.map((d, i) => (
-                          <Cell key={`mom-${d.period}`} fill={d.growth_pct >= 0 ? '#10b981' : '#ef4444'} />
+                          <Cell key={`mom-${d.period}`} fill={getGrowthColor(d.growth_pct)} />
                         ))}
                       </Bar>
                     </BarChart>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { API } from "../App";
+import { getCogsBadgeClass, getCogsColor } from "../lib/chartUtils";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -21,6 +22,7 @@ const ProductCalculator = () => {
   const [saving, setSaving] = useState(false);
   const [productDetail, setProductDetail] = useState(null);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchProducts = useCallback(async () => {
     try {
       const res = await axios.get(`${API}/products`);
@@ -238,7 +240,7 @@ const ProductCalculator = () => {
                 </div>
                 <div className="bg-zinc-800 rounded-lg p-3 text-center">
                   <p className="text-xs text-zinc-500 uppercase">COGS %</p>
-                  <p className={`text-lg font-bold mt-1 ${previewCogs > 35 ? 'text-red-500' : previewCogs > 25 ? 'text-amber-500' : 'text-emerald-500'}`}>
+                  <p className={`text-lg font-bold mt-1 ${getCogsColor(previewCogs)}`}>
                     {previewCogs.toFixed(1)}%
                   </p>
                 </div>
@@ -294,7 +296,7 @@ const ProductCalculator = () => {
                     <TableCell className="text-right font-mono text-zinc-400">{formatCurrency(p.packaging_cost)}</TableCell>
                     <TableCell className="text-right font-mono text-zinc-300">{formatCurrency(p.total_cost)}</TableCell>
                     <TableCell className="text-right">
-                      <Badge className={p.cogs_percent > 35 ? "bg-red-500/10 text-red-500" : p.cogs_percent > 25 ? "bg-amber-500/10 text-amber-500" : "bg-emerald-500/10 text-emerald-500"}>
+                      <Badge className={getCogsBadgeClass(p.cogs_percent)}>
                         {p.cogs_percent?.toFixed(1)}%
                       </Badge>
                     </TableCell>

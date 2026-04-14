@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area } from "recharts";
-import { CHART_TOOLTIP_STYLE, CHART_AXIS_TICK, CHART_GRID_STROKE, CHART_AXIS_STROKE, formatCurrency, getCogsBadgeClass, getStatusBadgeClass } from "../lib/chartUtils";
+import { CHART_TOOLTIP_STYLE, getRankClass, CHART_AXIS_TICK, CHART_GRID_STROKE, CHART_AXIS_STROKE, formatCurrency, getCogsBadgeClass, getStatusBadgeClass } from "../lib/chartUtils";
 
 export const SalesTrendChart = ({ data }) => (
   <Card className="bg-zinc-900 border-zinc-800">

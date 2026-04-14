@@ -30,6 +30,7 @@ const InventoryTracker = () => {
     unit: "kg", pack_cost: "", supplier: "", notes: ""
   });
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchData = useCallback(async () => {
     try {
       const [eRes, iRes] = await Promise.all([
