@@ -235,25 +235,25 @@ class AllocationSettingsUpdate(BaseModel):
 class InventoryEntry(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    product_id: str
-    product_name: str
+    ingredient_name: str
     date: str
     packs_in: int = 0
-    pieces_per_pack: int = 1
-    total_added: int = 0
-    used_qty: int = 0
+    units_per_pack: float = 1
+    unit: str = "kg"
+    total_qty_added: float = 0
+    pack_cost: float = 0
     cost_per_unit: float = 0
     supplier: str = ""
     notes: str = ""
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class InventoryEntryCreate(BaseModel):
-    product_id: str
-    product_name: str
+    ingredient_name: str
     date: str
     packs_in: int = 0
-    pieces_per_pack: int = 1
-    cost_per_unit: float = 0
+    units_per_pack: float = 1
+    unit: str = "kg"
+    pack_cost: float = 0
     supplier: str = ""
     notes: str = ""
 
@@ -854,41 +854,92 @@ async def calculate_allocation(week_sales: float = 0):
 
 # -------- INVENTORY --------
 
-@api_router.get("/inventory", response_model=List[InventoryEntry])
-async def get_inventory_entries(product_id: Optional[str] = None):
+@api_router.get("/inventory")
+async def get_inventory_entries(ingredient_name: Optional[str] = None):
     query = {}
-    if product_id:
-        query["product_id"] = product_id
+    if ingredient_name:
+        query["ingredient_name"] = ingredient_name
     entries = await db.inventory.find(query, {"_id": 0}).sort("date", -1).to_list(500)
     return entries
 
-@api_router.post("/inventory", response_model=InventoryEntry)
+@api_router.post("/inventory")
 async def create_inventory_entry(input: InventoryEntryCreate):
-    total_added = input.packs_in * input.pieces_per_pack
-    
+    total_qty = input.packs_in * input.units_per_pack
+    cost_per_unit = (input.pack_cost / input.units_per_pack) if input.units_per_pack > 0 else 0
+
     entry = InventoryEntry(
-        product_id=input.product_id,
-        product_name=input.product_name,
+        ingredient_name=input.ingredient_name,
         date=input.date,
         packs_in=input.packs_in,
-        pieces_per_pack=input.pieces_per_pack,
-        total_added=total_added,
-        cost_per_unit=input.cost_per_unit,
+        units_per_pack=input.units_per_pack,
+        unit=input.unit,
+        total_qty_added=round(total_qty, 4),
+        pack_cost=input.pack_cost,
+        cost_per_unit=round(cost_per_unit, 4),
         supplier=input.supplier,
         notes=input.notes
     )
-    
+
     doc = entry.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
     await db.inventory.insert_one(doc)
-    
-    # Update product stock
-    await db.products.update_one(
-        {"id": input.product_id},
-        {"$inc": {"current_stock": total_added}}
-    )
-    
+
+    # Auto-update any product ingredients that reference this raw material
+    # Find all product_ingredients docs that have an ingredient matching this name
+    all_ingredients = await db.product_ingredients.find({}, {"_id": 0}).to_list(500)
+    for pi_doc in all_ingredients:
+        updated = False
+        for ing in pi_doc.get('ingredients', []):
+            if ing.get('name', '').lower() == input.ingredient_name.lower():
+                ing['cost_per_unit'] = round(cost_per_unit, 4)
+                ing['total_cost'] = round(ing.get('qty_per_order', 0) * cost_per_unit, 4)
+                updated = True
+        if updated:
+            # Recalculate total food cost
+            total_food_cost = sum(i.get('total_cost', 0) for i in pi_doc['ingredients'])
+            await db.product_ingredients.update_one(
+                {"product_id": pi_doc['product_id']},
+                {"$set": {"ingredients": pi_doc['ingredients']}}
+            )
+            # Update the product's food_cost and derived fields
+            product = await db.products.find_one({"id": pi_doc['product_id']}, {"_id": 0})
+            if product:
+                total_food_cost = round(total_food_cost, 2)
+                pkg = product.get('packaging_cost', 0)
+                total_cost = total_food_cost + pkg
+                price = product.get('price', 0)
+                cogs_pct = (total_cost / price * 100) if price > 0 else 0
+                await db.products.update_one(
+                    {"id": pi_doc['product_id']},
+                    {"$set": {
+                        "food_cost": total_food_cost,
+                        "total_cost": round(total_cost, 2),
+                        "cogs_percent": round(cogs_pct, 2),
+                        "profit_per_order": round(price - total_cost, 2)
+                    }}
+                )
+
     return entry
+
+# -------- UNIQUE INGREDIENTS LIST --------
+
+@api_router.get("/inventory/ingredients")
+async def get_unique_ingredients():
+    """Get list of unique ingredient names from inventory history"""
+    entries = await db.inventory.find({}, {"_id": 0, "ingredient_name": 1, "unit": 1, "cost_per_unit": 1, "supplier": 1, "date": 1}).sort("date", -1).to_list(1000)
+    # Get latest entry per ingredient
+    seen = {}
+    for e in entries:
+        name = e.get('ingredient_name', '')
+        if name and name not in seen:
+            seen[name] = {
+                'name': name,
+                'unit': e.get('unit', ''),
+                'latest_cost': e.get('cost_per_unit', 0),
+                'latest_supplier': e.get('supplier', ''),
+                'last_purchased': e.get('date', '')
+            }
+    return list(seen.values())
 
 # -------- CASHFLOW TRACKER --------
 

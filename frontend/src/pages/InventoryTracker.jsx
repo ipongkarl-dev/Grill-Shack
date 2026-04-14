@@ -13,56 +13,67 @@ import { Badge } from "../components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog";
 import { format } from "date-fns";
-import { CalendarIcon, Plus, Package, Truck, FileText } from "lucide-react";
+import { CalendarIcon, Plus, Package, Truck, FileText, ArrowRight } from "lucide-react";
 
-const formatCurrency = (v) => new Intl.NumberFormat('en-NZ', { style: 'currency', currency: 'NZD' }).format(v);
+const fmt = (v) => new Intl.NumberFormat('en-NZ', { style: 'currency', currency: 'NZD', minimumFractionDigits: 2 }).format(v);
+
+const UNITS = ["kg", "g", "L", "ml", "pcs", "each", "pack", "dozen", "bottle", "bag"];
 
 const InventoryTracker = () => {
-  const [products, setProducts] = useState([]);
   const [entries, setEntries] = useState([]);
+  const [knownIngredients, setKnownIngredients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({
-    product_id: "", date: new Date(), packs_in: "", pieces_per_pack: "1",
-    cost_per_unit: "", supplier: "", notes: ""
+    ingredient_name: "", date: new Date(), packs_in: "", units_per_pack: "",
+    unit: "kg", pack_cost: "", supplier: "", notes: ""
   });
 
   const fetchData = async () => {
     try {
-      const [pRes, eRes] = await Promise.all([
-        axios.get(`${API}/products`),
-        axios.get(`${API}/inventory`)
+      const [eRes, iRes] = await Promise.all([
+        axios.get(`${API}/inventory`),
+        axios.get(`${API}/inventory/ingredients`)
       ]);
-      setProducts(pRes.data);
       setEntries(eRes.data);
-    } catch (_e) { toast.error('Failed to load data'); }
-    finally { setLoading(false); }
+      setKnownIngredients(iRes.data);
+    } catch (_e) {
+      toast.error("Failed to load inventory data");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { fetchData(); }, []);
 
   const handleSubmit = async () => {
-    if (!form.product_id) { toast.error("Select a product"); return; }
-    const product = products.find(p => p.id === form.product_id);
+    if (!form.ingredient_name.trim()) { toast.error("Ingredient name is required"); return; }
+    if (!form.packs_in || parseInt(form.packs_in) <= 0) { toast.error("Enter number of packs"); return; }
     try {
       await axios.post(`${API}/inventory`, {
-        product_id: form.product_id,
-        product_name: product?.name || "",
+        ingredient_name: form.ingredient_name.trim(),
         date: format(form.date, "yyyy-MM-dd"),
         packs_in: parseInt(form.packs_in) || 0,
-        pieces_per_pack: parseInt(form.pieces_per_pack) || 1,
-        cost_per_unit: parseFloat(form.cost_per_unit) || 0,
+        units_per_pack: parseFloat(form.units_per_pack) || 1,
+        unit: form.unit,
+        pack_cost: parseFloat(form.pack_cost) || 0,
         supplier: form.supplier,
         notes: form.notes
       });
-      toast.success("Stock entry recorded");
+      toast.success("Raw material purchase recorded! Linked product COGS updated.");
       setDialogOpen(false);
-      setForm({ product_id: "", date: new Date(), packs_in: "", pieces_per_pack: "1", cost_per_unit: "", supplier: "", notes: "" });
+      setForm({ ingredient_name: "", date: new Date(), packs_in: "", units_per_pack: "", unit: "kg", pack_cost: "", supplier: "", notes: "" });
       fetchData();
-    } catch (e) { toast.error("Failed to save"); }
+    } catch (_e) { toast.error("Failed to save entry"); }
   };
 
-  const totalAdded = (parseInt(form.packs_in) || 0) * (parseInt(form.pieces_per_pack) || 1);
+  // Derived values for preview
+  const previewPacks = parseInt(form.packs_in) || 0;
+  const previewUnitsPerPack = parseFloat(form.units_per_pack) || 1;
+  const previewPackCost = parseFloat(form.pack_cost) || 0;
+  const previewTotalQty = previewPacks * previewUnitsPerPack;
+  const previewTotalCost = previewPacks * previewPackCost;
+  const previewCostPerUnit = previewUnitsPerPack > 0 ? (previewPackCost / previewUnitsPerPack) : 0;
 
   if (loading) return <div className="h-96 bg-zinc-900 rounded-xl animate-pulse" />;
 
@@ -70,99 +81,152 @@ const InventoryTracker = () => {
     <div className="space-y-6" data-testid="inventory-tracker">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl sm:text-4xl font-heading font-bold text-zinc-50">Inventory Tracker</h1>
-          <p className="text-zinc-400 mt-2">Track stock movements, suppliers, and costs</p>
+          <h1 className="text-3xl sm:text-4xl font-heading font-bold text-zinc-50">Raw Material Inventory</h1>
+          <p className="text-zinc-400 mt-2">Track raw material purchases — costs auto-flow to Product Calculator and COGS</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button className="bg-orange-500 hover:bg-orange-600" data-testid="add-inventory-btn">
-              <Plus className="w-4 h-4 mr-2" /> Record Stock In
+              <Plus className="w-4 h-4 mr-2" /> Record Purchase
             </Button>
           </DialogTrigger>
           <DialogContent className="bg-zinc-900 border-zinc-800 max-w-md">
             <DialogHeader>
-              <DialogTitle className="text-zinc-50 font-heading">Record Stock In</DialogTitle>
+              <DialogTitle className="text-zinc-50 font-heading">Record Raw Material Purchase</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label className="text-zinc-400">Product *</Label>
-                <Select value={form.product_id} onValueChange={v => setForm(f => ({ ...f, product_id: v }))}>
-                  <SelectTrigger className="bg-zinc-800 border-zinc-700" data-testid="inv-product-select">
-                    <SelectValue placeholder="Select product" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-zinc-900 border-zinc-800">
-                    {products.map(p => <SelectItem key={p.id} value={p.id}>{p.name} ({p.code})</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <Label className="text-zinc-400">Ingredient Name *</Label>
+                <Input
+                  value={form.ingredient_name}
+                  onChange={e => setForm(f => ({ ...f, ingredient_name: e.target.value }))}
+                  className="bg-zinc-800 border-zinc-700"
+                  placeholder="e.g. Beef Mince, Burger Buns, BBQ Sauce"
+                  list="ingredient-suggestions"
+                  data-testid="inv-ingredient-input"
+                />
+                <datalist id="ingredient-suggestions">
+                  {knownIngredients.map(i => <option key={i.name} value={i.name} />)}
+                </datalist>
+                <p className="text-xs text-zinc-600">Must match ingredient names in Product Calculator for auto-linking</p>
               </div>
+
               <div className="space-y-2">
-                <Label className="text-zinc-400">Date</Label>
+                <Label className="text-zinc-400">Purchase Date</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button variant="outline" className="w-full justify-start bg-zinc-800 border-zinc-700">
                       <CalendarIcon className="w-4 h-4 mr-2" /> {format(form.date, "PPP")}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 bg-zinc-900 border-zinc-800"><Calendar mode="single" selected={form.date} onSelect={d => d && setForm(f => ({ ...f, date: d }))} /></PopoverContent>
+                  <PopoverContent className="w-auto p-0 bg-zinc-900 border-zinc-800">
+                    <Calendar mode="single" selected={form.date} onSelect={d => d && setForm(f => ({ ...f, date: d }))} />
+                  </PopoverContent>
                 </Popover>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+
+              <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-2">
-                  <Label className="text-zinc-400">Packs In</Label>
-                  <Input type="number" min="0" value={form.packs_in} onChange={e => setForm(f => ({ ...f, packs_in: e.target.value }))} className="bg-zinc-800 border-zinc-700" placeholder="0" data-testid="inv-packs-input" />
+                  <Label className="text-zinc-400">Packs Bought</Label>
+                  <Input type="number" min="1" value={form.packs_in} onChange={e => setForm(f => ({ ...f, packs_in: e.target.value }))} className="bg-zinc-800 border-zinc-700" placeholder="1" data-testid="inv-packs-input" />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-zinc-400">Pieces/Pack</Label>
-                  <Input type="number" min="1" value={form.pieces_per_pack} onChange={e => setForm(f => ({ ...f, pieces_per_pack: e.target.value }))} className="bg-zinc-800 border-zinc-700" placeholder="1" />
+                  <Label className="text-zinc-400">Qty per Pack</Label>
+                  <Input type="number" step="0.01" min="0.01" value={form.units_per_pack} onChange={e => setForm(f => ({ ...f, units_per_pack: e.target.value }))} className="bg-zinc-800 border-zinc-700" placeholder="1" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-zinc-400">Unit</Label>
+                  <Select value={form.unit} onValueChange={v => setForm(f => ({ ...f, unit: v }))}>
+                    <SelectTrigger className="bg-zinc-800 border-zinc-700"><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-zinc-900 border-zinc-800">
+                      {UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-              <div className="bg-zinc-800 rounded-lg p-3 text-center">
-                <p className="text-xs text-zinc-500">Total Units Added</p>
-                <p className="text-2xl font-bold text-orange-500">{totalAdded}</p>
-              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label className="text-zinc-400">Cost per Unit ($)</Label>
-                  <Input type="number" step="0.01" value={form.cost_per_unit} onChange={e => setForm(f => ({ ...f, cost_per_unit: e.target.value }))} className="bg-zinc-800 border-zinc-700" placeholder="0.00" />
+                  <Label className="text-zinc-400">Cost per Pack (NZD)</Label>
+                  <Input type="number" step="0.01" value={form.pack_cost} onChange={e => setForm(f => ({ ...f, pack_cost: e.target.value }))} className="bg-zinc-800 border-zinc-700" placeholder="25.00" data-testid="inv-cost-input" />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-zinc-400">Supplier</Label>
                   <Input value={form.supplier} onChange={e => setForm(f => ({ ...f, supplier: e.target.value }))} className="bg-zinc-800 border-zinc-700" placeholder="Supplier name" data-testid="inv-supplier-input" />
                 </div>
               </div>
+
+              {/* Cost Breakdown Preview */}
+              <div className="bg-zinc-800 rounded-lg p-4 space-y-2">
+                <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Cost Breakdown</p>
+                <div className="grid grid-cols-3 gap-3 text-sm text-center">
+                  <div>
+                    <p className="text-zinc-500">Total Qty</p>
+                    <p className="font-mono text-zinc-200 text-lg">{previewTotalQty.toFixed(2)} {form.unit}</p>
+                  </div>
+                  <div>
+                    <p className="text-zinc-500">Total Cost</p>
+                    <p className="font-mono text-orange-500 text-lg">{fmt(previewTotalCost)}</p>
+                  </div>
+                  <div>
+                    <p className="text-zinc-500">Cost per {form.unit}</p>
+                    <p className="font-mono text-emerald-500 text-lg">{fmt(previewCostPerUnit)}</p>
+                  </div>
+                </div>
+                <p className="text-xs text-orange-500/80 text-center mt-2">
+                  This cost-per-unit will auto-update linked product ingredients
+                </p>
+              </div>
+
               <div className="space-y-2">
                 <Label className="text-zinc-400">Notes</Label>
-                <Input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} className="bg-zinc-800 border-zinc-700" placeholder="e.g. Weekly restock" />
+                <Input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} className="bg-zinc-800 border-zinc-700" placeholder="e.g. Weekly restock from Gilmours" />
               </div>
+
               <div className="flex gap-3">
                 <Button variant="outline" onClick={() => setDialogOpen(false)} className="flex-1 border-zinc-700 hover:bg-zinc-800">Cancel</Button>
-                <Button onClick={handleSubmit} className="flex-1 bg-orange-500 hover:bg-orange-600" data-testid="save-inventory-btn">Save Entry</Button>
+                <Button onClick={handleSubmit} className="flex-1 bg-orange-500 hover:bg-orange-600" data-testid="save-inventory-btn">Record Purchase</Button>
               </div>
             </div>
           </DialogContent>
         </Dialog>
       </div>
 
-      {/* Current Stock Overview */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-        {products.map(p => (
-          <Card key={p.id} className={`bg-zinc-900 border-zinc-800 ${p.current_stock <= p.reorder_point ? 'border-amber-500/40' : ''}`}>
-            <CardContent className="p-3 text-center">
-              <p className="text-xs text-zinc-500 truncate">{p.name}</p>
-              <p className={`text-2xl font-bold font-heading mt-1 ${p.current_stock <= p.reorder_point ? 'text-amber-500' : 'text-zinc-200'}`}>
-                {p.current_stock}
-              </p>
-              <p className="text-xs text-zinc-600">Reorder: {p.reorder_point}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {/* How COGS Flows */}
+      <Card className="bg-zinc-900 border-zinc-800 border-orange-500/20">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-center gap-3 text-sm flex-wrap">
+            <Badge className="bg-orange-500/10 text-orange-500">Raw Material Purchase</Badge>
+            <ArrowRight className="w-4 h-4 text-zinc-600" />
+            <Badge className="bg-blue-500/10 text-blue-500">Ingredient Cost Updates</Badge>
+            <ArrowRight className="w-4 h-4 text-zinc-600" />
+            <Badge className="bg-emerald-500/10 text-emerald-500">Product COGS Recalculates</Badge>
+            <ArrowRight className="w-4 h-4 text-zinc-600" />
+            <Badge className="bg-purple-500/10 text-purple-500">Session Margins Update</Badge>
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* History Table */}
+      {/* Known Ingredients Summary */}
+      {knownIngredients.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          {knownIngredients.map(i => (
+            <Card key={i.name} className="bg-zinc-900 border-zinc-800">
+              <CardContent className="p-3 text-center">
+                <p className="text-xs text-zinc-500 truncate">{i.name}</p>
+                <p className="text-lg font-bold font-heading text-zinc-200 mt-1">{fmt(i.latest_cost)}/{i.unit}</p>
+                <p className="text-xs text-zinc-600">{i.latest_supplier || 'No supplier'}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Purchase History Table */}
       <Card className="bg-zinc-900 border-zinc-800">
         <CardHeader>
           <CardTitle className="text-lg font-heading text-zinc-50 flex items-center">
-            <FileText className="w-5 h-5 mr-2 text-orange-500" /> Stock Movement Log
+            <FileText className="w-5 h-5 mr-2 text-orange-500" /> Purchase Log
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
@@ -171,10 +235,11 @@ const InventoryTracker = () => {
               <TableHeader>
                 <TableRow className="border-zinc-800 hover:bg-transparent">
                   <TableHead className="text-zinc-400">Date</TableHead>
-                  <TableHead className="text-zinc-400">Product</TableHead>
+                  <TableHead className="text-zinc-400">Ingredient</TableHead>
                   <TableHead className="text-zinc-400 text-right">Packs</TableHead>
-                  <TableHead className="text-zinc-400 text-right">pcs/Pack</TableHead>
-                  <TableHead className="text-zinc-400 text-right">Total Added</TableHead>
+                  <TableHead className="text-zinc-400 text-right">Qty/Pack</TableHead>
+                  <TableHead className="text-zinc-400 text-right">Total Qty</TableHead>
+                  <TableHead className="text-zinc-400 text-right">Pack Cost</TableHead>
                   <TableHead className="text-zinc-400 text-right">Cost/Unit</TableHead>
                   <TableHead className="text-zinc-400">Supplier</TableHead>
                   <TableHead className="text-zinc-400">Notes</TableHead>
@@ -183,19 +248,21 @@ const InventoryTracker = () => {
               <TableBody>
                 {entries.length === 0 ? (
                   <TableRow className="border-zinc-800">
-                    <TableCell colSpan={8} className="text-center py-12 text-zinc-500">
+                    <TableCell colSpan={9} className="text-center py-12 text-zinc-500">
                       <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                      <p>No inventory movements recorded yet</p>
+                      <p>No raw material purchases recorded yet</p>
+                      <p className="text-xs mt-1">Record purchases to build cost history and auto-update COGS</p>
                     </TableCell>
                   </TableRow>
                 ) : entries.map(e => (
                   <TableRow key={e.id} className="border-zinc-800 hover:bg-zinc-800/50">
                     <TableCell className="text-zinc-300">{e.date}</TableCell>
-                    <TableCell className="font-medium text-zinc-200">{e.product_name}</TableCell>
+                    <TableCell className="font-medium text-zinc-200">{e.ingredient_name}</TableCell>
                     <TableCell className="text-right font-mono text-zinc-300">{e.packs_in}</TableCell>
-                    <TableCell className="text-right font-mono text-zinc-300">{e.pieces_per_pack}</TableCell>
-                    <TableCell className="text-right font-mono text-emerald-500 font-semibold">+{e.total_added}</TableCell>
-                    <TableCell className="text-right font-mono text-zinc-400">{formatCurrency(e.cost_per_unit)}</TableCell>
+                    <TableCell className="text-right font-mono text-zinc-300">{e.units_per_pack} {e.unit}</TableCell>
+                    <TableCell className="text-right font-mono text-emerald-500 font-semibold">{e.total_qty_added} {e.unit}</TableCell>
+                    <TableCell className="text-right font-mono text-orange-400">{fmt(e.pack_cost)}</TableCell>
+                    <TableCell className="text-right font-mono text-zinc-200">{fmt(e.cost_per_unit)}/{e.unit}</TableCell>
                     <TableCell className="text-zinc-400">{e.supplier || '-'}</TableCell>
                     <TableCell className="text-zinc-500 text-xs max-w-[200px] truncate">{e.notes || '-'}</TableCell>
                   </TableRow>
