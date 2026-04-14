@@ -1,0 +1,97 @@
+{
+  "theme": "dark",
+  "archetype": "Archetype 4 (Swiss & High-Contrast) tailored for Hospitality/Grill",
+  "brand": {
+    "name": "Grill Shack",
+    "tone": "Professional, moody, high-performance, warm.",
+    "currency": "NZD"
+  },
+  "typography": {
+    "heading_font": "Manrope",
+    "body_font": "IBM Plex Sans",
+    "scales": {
+      "h1": "text-4xl sm:text-5xl font-black tracking-tight",
+      "h2": "text-2xl sm:text-3xl font-bold tracking-tight",
+      "h3": "text-xl sm:text-2xl font-semibold",
+      "h4": "text-lg sm:text-xl font-medium",
+      "body": "text-sm sm:text-base leading-relaxed",
+      "small_labels": "text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400"
+    }
+  },
+  "colors": {
+    "background": "bg-zinc-950",
+    "surface": "bg-zinc-900",
+    "surface_hover": "bg-zinc-800",
+    "border": "border-zinc-800",
+    "primary": "text-orange-500",
+    "primary_bg": "bg-orange-500",
+    "primary_hover": "bg-orange-600",
+    "text_main": "text-zinc-50",
+    "text_muted": "text-zinc-400",
+    "success": "text-emerald-500",
+    "warning": "text-red-500",
+    "focus_ring": "focus:ring-2 focus:ring-orange-500/50 focus:outline-none"
+  },
+  "spacing_and_layout": {
+    "dashboard_grid": "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6",
+    "container_padding": "p-6 sm:p-8",
+    "card_padding": "p-6",
+    "radius": "rounded-xl",
+    "alignment": {
+      "headings": "left-aligned",
+      "numbers": "right-aligned in tables",
+      "buttons": "left-aligned or full-width in forms"
+    }
+  },
+  "components": {
+    "cards": "Flat background (bg-zinc-900), 1px subtle border (border-zinc-800), no outer shadow. Use sharp contrasts.",
+    "tables": "Dense. Use IBM Plex Sans for numeric columns. Right-align all currency values.",
+    "forms": "Use Shadcn Input/Select. bg-zinc-900 border-zinc-800 focus:border-orange-500.",
+    "buttons": "Primary: bg-orange-500 text-white hover:bg-orange-600. Secondary: border border-zinc-800 hover:bg-zinc-800 text-zinc-300.",
+    "navigation": "Fixed left sidebar on desktop, bottom bar or hamburger on mobile. bg-zinc-950 border-r border-zinc-800."
+  },
+  "motion_and_interactions": {
+    "hover_states": "All buttons and links must have explicit hover states (e.g., hover:bg-zinc-800). Cards should lift slightly (-translate-y-1) on hover with a border color change (hover:border-zinc-600).",
+    "transitions": "transition-all duration-200 ease-in-out"
+  },
+  "accessibility": {
+    "contrast": "Ensure text contrast on bg-zinc-900 is at least 4.5:1. Primary orange button must use white text.",
+    "test_ids": "All interactive elements must have data-testid attributes (e.g., data-testid='submit-sales-btn')."
+  },
+  "icons": {
+    "library": "lucide-react",
+    "style": "Stroke width 2.0, standard sizing (w-5 h-5 for inline, w-8 h-8 for empty states). Use Flame icon for branding."
+  },
+  "media": {
+    "images": [
+      {
+        "category": "hero_background",
+        "url": "https://images.unsplash.com/photo-1762202742459-4fcdc4beaab4?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDZ8MHwxfHNlYXJjaHwxfHxmaXJlJTIwZW1iZXJzJTIwZGFyayUyMGJhY2tncm91bmQlMjB0ZXh0dXJlfGVufDB8fHx8MTc3NjEzOTQ0MHww&ixlib=rb-4.1.0&q=85",
+        "description": "Glowing hot embers and coals in a fire - use for login page background or empty states.",
+        "usage_instructions": "Apply heavily darkened overlay (bg-black/70) to ensure text readability."
+      },
+      {
+        "category": "food_truck_ambiance",
+        "url": "https://images.pexels.com/photos/35498997/pexels-photo-35498997.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Street food truck at night with customers.",
+        "usage_instructions": "Use in the Operations Dashboard 'Welcome' banner or market profile cards."
+      },
+      {
+        "category": "user_avatar",
+        "url": "https://images.unsplash.com/photo-1634938332514-6f3d23c8cc42?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjV8MHwxfHNlYXJjaHwxfHxjaGVmJTIwcG9ydHJhaXQlMjBkYXJrJTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3NzYxMzk0NDB8MA&ixlib=rb-4.1.0&q=85",
+        "description": "A man wearing glasses and a v-neck shirt in the dark.",
+        "usage_instructions": "Use as the owner/manager profile picture in the sidebar/header."
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "1. Initialize layout with a fixed Sidebar (Navigation) and main content area.",
+    "2. Use Tailwind dark mode classes explicitly (`bg-zinc-950`). The app is dark mode only.",
+    "3. Build key components with Shadcn: Card, Table, Form, Input, Button, Tabs.",
+    "4. Construct the 'Operations Dashboard' as the default view, integrating KPIs (Sales, COGS, Profit) in a grid.",
+    "5. Use 'recharts' for the Sales Performance Tracker. Use the Primary Orange and Emerald colors in the charts.",
+    "6. Make sure all currency formatting explicitly displays NZD (e.g., $1,234.56).",
+    "7. Implement a 'Margin Watch' table that highlights items where COGS exceeds threshold using the red warning color.",
+    "8. ALWAYS include data-testid on buttons, inputs, tabs, and critical links."
+  ]
+}
