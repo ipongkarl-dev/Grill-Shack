@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { API } from "../App";
 import { toast } from "sonner";
@@ -18,15 +18,15 @@ const MarketsPage = () => {
   const [editing, setEditing] = useState(null);
   const [name, setName] = useState("");
 
-  const fetchMarkets = async () => {
+  const fetchMarkets = useCallback(async () => {
     try {
       const res = await axios.get(`${API}/markets`);
       setMarkets(res.data);
     } catch (_e) { toast.error('Failed to load data'); }
     finally { setLoading(false); }
-  };
+  }, []);
 
-  useEffect(() => { fetchMarkets(); }, []);
+  useEffect(() => { fetchMarkets(); }, [fetchMarkets]);
 
   const openNew = () => { setEditing(null); setName(""); setDialogOpen(true); };
   const openEdit = (m) => { setEditing(m); setName(m.name); setDialogOpen(true); };

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { API } from "../App";
 import { toast } from "sonner";
@@ -20,15 +20,15 @@ const CashflowTracker = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ month: "", sales_target: "", growth_saved: "", emergency_saved: "", notes: "" });
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const res = await axios.get(`${API}/cashflow`);
       setTargets(res.data);
     } catch (_e) { toast.error('Failed to load data'); }
     finally { setLoading(false); }
-  };
+  }, []);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleSave = async () => {
     if (!form.month) { toast.error("Month is required (YYYY-MM)"); return; }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { API } from "../App";
 import { getStatusBadgeClass } from "../lib/chartUtils";
@@ -44,7 +44,7 @@ const CashSystem = () => {
     expense_notes: ""
   });
 
-  const fetchSessions = async () => {
+  const fetchSessions = useCallback(async () => {
     try {
       const response = await axios.get(`${API}/sessions?limit=50`);
       setSessions(response.data);
@@ -53,11 +53,9 @@ const CashSystem = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchSessions();
   }, []);
+
+  useEffect(() => { fetchSessions(); }, [fetchSessions]);
 
   const openEdit = (session) => {
     setEditingSession(session);

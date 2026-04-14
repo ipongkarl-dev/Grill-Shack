@@ -1,7 +1,8 @@
 import { toast } from "sonner";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { API } from "../App";
+import { CHART_TOOLTIP_STYLE, CHART_AXIS_TICK, CHART_AXIS_TICK_SM, CHART_GRID_STROKE, CHART_AXIS_STROKE } from "../lib/chartUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
@@ -15,12 +16,14 @@ const HistoricalComparison = () => {
   const [data, setData] = useState({ week_over_week: [], month_over_month: [] });
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchData = useCallback(() => {
     axios.get(`${API}/dashboard/historical`)
       .then(r => setData(r.data))
       .catch(() => { toast.error('Failed to load data'); })
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   if (loading) return <div className="h-96 bg-zinc-900 rounded-xl animate-pulse" />;
 
@@ -96,10 +99,10 @@ const HistoricalComparison = () => {
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={wow}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                      <XAxis dataKey="period" stroke="#71717a" tick={{ fill: '#a1a1aa', fontSize: 10 }} />
-                      <YAxis stroke="#71717a" tick={{ fill: '#a1a1aa', fontSize: 12 }} tickFormatter={v => `$${v / 1000}k`} />
-                      <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }} formatter={v => fmt(v)} />
+                      <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
+                      <XAxis dataKey="period" stroke={CHART_AXIS_STROKE} tick={CHART_AXIS_TICK_SM} />
+                      <YAxis stroke={CHART_AXIS_STROKE} tick={CHART_AXIS_TICK} tickFormatter={v => `$${v / 1000}k`} />
+                      <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={v => fmt(v)} />
                       <Legend />
                       <Line type="monotone" dataKey="sales" name="Sales" stroke="#f97316" strokeWidth={2} dot={{ fill: '#f97316', r: 4 }} />
                       <Line type="monotone" dataKey="profit" name="Profit" stroke="#10b981" strokeWidth={2} dot={{ fill: '#10b981', r: 4 }} />
@@ -115,10 +118,10 @@ const HistoricalComparison = () => {
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={wow}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                      <XAxis dataKey="period" stroke="#71717a" tick={{ fill: '#a1a1aa', fontSize: 10 }} />
-                      <YAxis stroke="#71717a" tick={{ fill: '#a1a1aa', fontSize: 12 }} tickFormatter={v => `${v}%`} />
-                      <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }} formatter={v => `${v}%`} />
+                      <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
+                      <XAxis dataKey="period" stroke={CHART_AXIS_STROKE} tick={CHART_AXIS_TICK_SM} />
+                      <YAxis stroke={CHART_AXIS_STROKE} tick={CHART_AXIS_TICK} tickFormatter={v => `${v}%`} />
+                      <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={v => `${v}%`} />
                       <ReferenceLine y={0} stroke="#52525b" />
                       <Bar dataKey="growth_pct" name="Growth %" radius={[4, 4, 0, 0]}>
                         {wow.map((d, i) => (
@@ -177,10 +180,10 @@ const HistoricalComparison = () => {
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={mom}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                      <XAxis dataKey="period" stroke="#71717a" tick={{ fill: '#a1a1aa', fontSize: 12 }} />
-                      <YAxis stroke="#71717a" tick={{ fill: '#a1a1aa', fontSize: 12 }} tickFormatter={v => `$${v / 1000}k`} />
-                      <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }} formatter={v => fmt(v)} />
+                      <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
+                      <XAxis dataKey="period" stroke={CHART_AXIS_STROKE} tick={CHART_AXIS_TICK} />
+                      <YAxis stroke={CHART_AXIS_STROKE} tick={CHART_AXIS_TICK} tickFormatter={v => `$${v / 1000}k`} />
+                      <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={v => fmt(v)} />
                       <Legend />
                       <Bar dataKey="sales" name="Sales" fill="#f97316" radius={[4, 4, 0, 0]} />
                       <Bar dataKey="profit" name="Profit" fill="#10b981" radius={[4, 4, 0, 0]} />
@@ -196,10 +199,10 @@ const HistoricalComparison = () => {
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={mom}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                      <XAxis dataKey="period" stroke="#71717a" tick={{ fill: '#a1a1aa', fontSize: 12 }} />
-                      <YAxis stroke="#71717a" tick={{ fill: '#a1a1aa', fontSize: 12 }} tickFormatter={v => `${v}%`} />
-                      <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }} formatter={v => `${v}%`} />
+                      <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
+                      <XAxis dataKey="period" stroke={CHART_AXIS_STROKE} tick={CHART_AXIS_TICK} />
+                      <YAxis stroke={CHART_AXIS_STROKE} tick={CHART_AXIS_TICK} tickFormatter={v => `${v}%`} />
+                      <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={v => `${v}%`} />
                       <ReferenceLine y={0} stroke="#52525b" />
                       <Bar dataKey="growth_pct" name="Growth %" radius={[4, 4, 0, 0]}>
                         {mom.map((d, i) => (

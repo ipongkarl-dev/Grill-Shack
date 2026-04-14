@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { API } from "../App";
 import { toast } from "sonner";
@@ -50,8 +50,7 @@ const AllocationTool = () => {
   const [calculating, setCalculating] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    const fetchSettings = async () => {
+  const fetchSettings = useCallback(async () => {
       try {
         const response = await axios.get(`${API}/allocation/settings`);
         setSettings(response.data);
@@ -60,9 +59,9 @@ const AllocationTool = () => {
       } finally {
         setLoading(false);
       }
-    };
-    fetchSettings();
   }, []);
+
+  useEffect(() => { fetchSettings(); }, [fetchSettings]);
 
   const calculateAllocation = async () => {
     if (!weekSales || parseFloat(weekSales) <= 0) {

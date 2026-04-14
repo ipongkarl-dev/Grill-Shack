@@ -1,7 +1,8 @@
 import { toast } from "sonner";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { API } from "../App";
+import { CHART_TOOLTIP_STYLE, CHART_AXIS_TICK, CHART_AXIS_TICK_SM, CHART_GRID_STROKE, CHART_AXIS_STROKE } from "../lib/chartUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
@@ -15,12 +16,14 @@ const StaffPerformance = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchData = useCallback(() => {
     axios.get(`${API}/dashboard/staff-performance`)
       .then(r => setData(r.data))
       .catch(() => { toast.error('Failed to load data'); })
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   if (loading) return <div className="h-96 bg-zinc-900 rounded-xl animate-pulse" />;
 
@@ -118,10 +121,10 @@ const StaffPerformance = () => {
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={barData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                  <XAxis dataKey="name" stroke="#71717a" tick={{ fill: '#a1a1aa', fontSize: 12 }} />
-                  <YAxis stroke="#71717a" tick={{ fill: '#a1a1aa', fontSize: 12 }} tickFormatter={v => `$${v / 1000}k`} />
-                  <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }} formatter={v => fmt(v)} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
+                  <XAxis dataKey="name" stroke={CHART_AXIS_STROKE} tick={CHART_AXIS_TICK} />
+                  <YAxis stroke={CHART_AXIS_STROKE} tick={CHART_AXIS_TICK} tickFormatter={v => `$${v / 1000}k`} />
+                  <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={v => fmt(v)} />
                   <Legend />
                   <Bar dataKey="sales" name="Revenue" fill="#f97316" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="profit" name="Profit" fill="#10b981" radius={[4, 4, 0, 0]} />
@@ -140,7 +143,7 @@ const StaffPerformance = () => {
                   <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} innerRadius={50}>
                     {pieData.map((_, i) => <Cell key={`pie-${pieData[i]?.name || i}`} fill={COLORS[i % COLORS.length]} />)}
                   </Pie>
-                  <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }} formatter={v => fmt(v)} />
+                  <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={v => fmt(v)} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="w-1/2 space-y-2">

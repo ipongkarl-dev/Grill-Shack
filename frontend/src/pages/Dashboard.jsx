@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import { API } from "../App";
@@ -79,8 +79,7 @@ const Dashboard = () => {
   const [monthlyData, setMonthlyData] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchData = async () => {
+  const fetchData = useCallback(async () => {
       try {
         const [kpiRes, monthlyRes] = await Promise.all([
           axios.get(`${API}/dashboard/kpis`),
@@ -93,9 +92,9 @@ const Dashboard = () => {
       } finally {
         setLoading(false);
       }
-    };
-    fetchData();
   }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   if (loading) {
     return (

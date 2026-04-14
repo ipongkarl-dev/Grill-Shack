@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { API } from "../App";
 import { toast } from "sonner";
@@ -52,8 +52,7 @@ const SessionInput = ({ user }) => {
     cogsPercent: 0
   });
 
-  useEffect(() => {
-    const fetchData = async () => {
+  const fetchInitialData = useCallback(async () => {
       try {
         const [productsRes, marketsRes] = await Promise.all([
           axios.get(`${API}/products`),
@@ -73,9 +72,9 @@ const SessionInput = ({ user }) => {
       } finally {
         setLoading(false);
       }
-    };
-    fetchData();
   }, []);
+
+  useEffect(() => { fetchInitialData(); }, [fetchInitialData]);
 
   // Recalculate whenever sales or payments change
   useEffect(() => {

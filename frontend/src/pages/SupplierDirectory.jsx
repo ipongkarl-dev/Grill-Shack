@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { API } from "../App";
 import { toast } from "sonner";
@@ -19,7 +19,7 @@ const SupplierDirectory = () => {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ name: "", contact_person: "", phone: "", email: "", address: "", products: [], notes: "" });
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const [sRes, pRes] = await Promise.all([
         axios.get(`${API}/suppliers`),
@@ -29,9 +29,9 @@ const SupplierDirectory = () => {
       setProducts(pRes.data);
     } catch (_e) { toast.error('Failed to load data'); }
     finally { setLoading(false); }
-  };
+  }, []);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const openNew = () => {
     setEditing(null);

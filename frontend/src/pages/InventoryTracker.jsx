@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { API } from "../App";
 import { toast } from "sonner";
@@ -30,7 +30,7 @@ const InventoryTracker = () => {
     unit: "kg", pack_cost: "", supplier: "", notes: ""
   });
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const [eRes, iRes] = await Promise.all([
         axios.get(`${API}/inventory`),
@@ -43,9 +43,9 @@ const InventoryTracker = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleSubmit = async () => {
     if (!form.ingredient_name.trim()) { toast.error("Ingredient name is required"); return; }

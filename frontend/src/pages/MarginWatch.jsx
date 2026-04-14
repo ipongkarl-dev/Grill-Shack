@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import { API } from "../App";
@@ -55,8 +55,7 @@ const MarginWatch = () => {
   const [marginData, setMarginData] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchData = async () => {
+  const fetchData = useCallback(async () => {
       try {
         const response = await axios.get(`${API}/dashboard/margin-watch`);
         setMarginData(response.data);
@@ -65,9 +64,9 @@ const MarginWatch = () => {
       } finally {
         setLoading(false);
       }
-    };
-    fetchData();
   }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   if (loading) {
     return (

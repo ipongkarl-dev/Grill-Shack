@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { API } from "../App";
+import { CHART_TOOLTIP_STYLE, CHART_AXIS_TICK, CHART_AXIS_TICK_SM, CHART_GRID_STROKE, CHART_AXIS_STROKE } from "../lib/chartUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -120,10 +121,10 @@ const ScalePlanner = () => {
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={projectionData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                    <XAxis dataKey="name" stroke="#71717a" tick={{ fill: '#a1a1aa', fontSize: 12 }} />
-                    <YAxis stroke="#71717a" tick={{ fill: '#a1a1aa', fontSize: 12 }} tickFormatter={v => `$${v / 1000}k`} />
-                    <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }} formatter={v => fmt(v)} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
+                    <XAxis dataKey="name" stroke={CHART_AXIS_STROKE} tick={CHART_AXIS_TICK} />
+                    <YAxis stroke={CHART_AXIS_STROKE} tick={CHART_AXIS_TICK} tickFormatter={v => `$${v / 1000}k`} />
+                    <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={v => fmt(v)} />
                     <Bar dataKey="value" radius={[6, 6, 0, 0]}>
                       {projectionData.map((d, i) => {
                         const fills = ['#f97316', '#3b82f6', '#ef4444', '#10b981'];

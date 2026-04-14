@@ -41,7 +41,7 @@ const StockPlanner = () => {
         const response = await axios.get(`${API}/markets`);
         setMarkets(response.data);
       } catch (_e) {
-        /* logged server-side */
+        toast.error("Failed to load markets");
       } finally {
         setLoading(false);
       }

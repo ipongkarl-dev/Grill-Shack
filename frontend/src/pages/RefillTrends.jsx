@@ -1,5 +1,5 @@
 import { toast } from "sonner";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { API } from "../App";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -13,12 +13,14 @@ const RefillTrends = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchData = useCallback(() => {
     axios.get(`${API}/dashboard/refill-trends`)
       .then(r => setData(r.data))
       .catch(() => { toast.error('Failed to load data'); })
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   if (loading) return <div className="h-96 bg-zinc-900 rounded-xl animate-pulse" />;
 

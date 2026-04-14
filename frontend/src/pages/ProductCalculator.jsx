@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { API } from "../App";
 import { toast } from "sonner";
@@ -21,15 +21,15 @@ const ProductCalculator = () => {
   const [saving, setSaving] = useState(false);
   const [productDetail, setProductDetail] = useState(null);
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     try {
       const res = await axios.get(`${API}/products`);
       setProducts(res.data);
     } catch (_e) { toast.error('Failed to load data'); }
     finally { setLoading(false); }
-  };
+  }, []);
 
-  useEffect(() => { fetchProducts(); }, []);
+  useEffect(() => { fetchProducts(); }, [fetchProducts]);
 
   const loadIngredients = async (productId) => {
     setSelectedProduct(productId);

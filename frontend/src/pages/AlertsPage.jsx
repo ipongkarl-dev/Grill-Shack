@@ -1,5 +1,5 @@
 import { toast } from "sonner";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import { API } from "../App";
@@ -12,16 +12,16 @@ const AlertsPage = () => {
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchAlerts = async () => {
+  const fetchAlerts = useCallback(async () => {
     setLoading(true);
     try {
       const res = await axios.get(`${API}/alerts`);
       setAlerts(res.data);
     } catch (_e) { toast.error('Failed to load data'); }
     finally { setLoading(false); }
-  };
+  }, []);
 
-  useEffect(() => { fetchAlerts(); }, []);
+  useEffect(() => { fetchAlerts(); }, [fetchAlerts]);
 
   if (loading) return <div className="h-96 bg-zinc-900 rounded-xl animate-pulse" />;
 

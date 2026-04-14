@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { API } from "../App";
 import { toast } from "sonner";
@@ -20,7 +20,7 @@ const PrepChecklist = () => {
   const [targetRevenue, setTargetRevenue] = useState("1000");
   const [checkedItems, setCheckedItems] = useState({});
 
-  const fetchChecklist = async () => {
+  const fetchChecklist = useCallback(async () => {
     try {
       const params = new URLSearchParams({ target_revenue: targetRevenue });
       if (selectedMarket && selectedMarket !== "all") params.append("market_id", selectedMarket);
@@ -31,9 +31,10 @@ const PrepChecklist = () => {
       setCheckedItems(initial);
     } catch (_e) { toast.error('Failed to load data'); }
     finally { setLoading(false); }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  useEffect(() => { fetchChecklist(); }, []);
+  useEffect(() => { fetchChecklist(); }, [fetchChecklist]);
 
   const toggleCheck = (id) => {
     setCheckedItems(prev => ({ ...prev, [id]: !prev[id] }));

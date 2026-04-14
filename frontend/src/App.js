@@ -209,7 +209,8 @@ function App() {
           await axios.post(`${API}/seed`);
           toast.success("Initial data loaded from Excel!");
         }
-      } catch (error) {
+      } catch (_err) {
+        toast.error("Failed to initialize app");
       } finally {
         setLoading(false);
       }

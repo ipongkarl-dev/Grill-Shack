@@ -897,63 +897,50 @@ async def get_inventory_entries(ingredient_name: Optional[str] = None):
     entries = await db.inventory.find(query, {"_id": 0}).sort("date", -1).to_list(500)
     return entries
 
+async def cascade_ingredient_cost(ingredient_name: str, cost_per_unit: float):
+    """Update all product ingredients matching this name and recalculate COGS."""
+    all_pi = await db.product_ingredients.find({}, {"_id": 0}).to_list(500)
+    for pi_doc in all_pi:
+        updated = False
+        for ing in pi_doc.get('ingredients', []):
+            if ing.get('name', '').lower() == ingredient_name.lower():
+                ing['cost_per_unit'] = round(cost_per_unit, 4)
+                ing['total_cost'] = round(ing.get('qty_per_order', 0) * cost_per_unit, 4)
+                updated = True
+        if not updated:
+            continue
+        total_food_cost = round(sum(i.get('total_cost', 0) for i in pi_doc['ingredients']), 2)
+        await db.product_ingredients.update_one(
+            {"product_id": pi_doc['product_id']},
+            {"$set": {"ingredients": pi_doc['ingredients']}}
+        )
+        product = await db.products.find_one({"id": pi_doc['product_id']}, {"_id": 0})
+        if product:
+            pkg = product.get('packaging_cost', 0)
+            total_cost = total_food_cost + pkg
+            price = product.get('price', 0)
+            cogs_pct = (total_cost / price * 100) if price > 0 else 0
+            await db.products.update_one({"id": pi_doc['product_id']}, {"$set": {
+                "food_cost": total_food_cost, "total_cost": round(total_cost, 2),
+                "cogs_percent": round(cogs_pct, 2), "profit_per_order": round(price - total_cost, 2)
+            }})
+
 @api_router.post("/inventory")
 async def create_inventory_entry(input: InventoryEntryCreate):
     total_qty = input.packs_in * input.units_per_pack
     cost_per_unit = (input.pack_cost / input.units_per_pack) if input.units_per_pack > 0 else 0
 
     entry = InventoryEntry(
-        ingredient_name=input.ingredient_name,
-        date=input.date,
-        packs_in=input.packs_in,
-        units_per_pack=input.units_per_pack,
-        unit=input.unit,
-        total_qty_added=round(total_qty, 4),
-        pack_cost=input.pack_cost,
-        cost_per_unit=round(cost_per_unit, 4),
-        supplier=input.supplier,
-        notes=input.notes
+        ingredient_name=input.ingredient_name, date=input.date,
+        packs_in=input.packs_in, units_per_pack=input.units_per_pack,
+        unit=input.unit, total_qty_added=round(total_qty, 4),
+        pack_cost=input.pack_cost, cost_per_unit=round(cost_per_unit, 4),
+        supplier=input.supplier, notes=input.notes
     )
-
     doc = entry.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
     await db.inventory.insert_one(doc)
-
-    # Auto-update any product ingredients that reference this raw material
-    # Find all product_ingredients docs that have an ingredient matching this name
-    all_ingredients = await db.product_ingredients.find({}, {"_id": 0}).to_list(500)
-    for pi_doc in all_ingredients:
-        updated = False
-        for ing in pi_doc.get('ingredients', []):
-            if ing.get('name', '').lower() == input.ingredient_name.lower():
-                ing['cost_per_unit'] = round(cost_per_unit, 4)
-                ing['total_cost'] = round(ing.get('qty_per_order', 0) * cost_per_unit, 4)
-                updated = True
-        if updated:
-            # Recalculate total food cost
-            total_food_cost = sum(i.get('total_cost', 0) for i in pi_doc['ingredients'])
-            await db.product_ingredients.update_one(
-                {"product_id": pi_doc['product_id']},
-                {"$set": {"ingredients": pi_doc['ingredients']}}
-            )
-            # Update the product's food_cost and derived fields
-            product = await db.products.find_one({"id": pi_doc['product_id']}, {"_id": 0})
-            if product:
-                total_food_cost = round(total_food_cost, 2)
-                pkg = product.get('packaging_cost', 0)
-                total_cost = total_food_cost + pkg
-                price = product.get('price', 0)
-                cogs_pct = (total_cost / price * 100) if price > 0 else 0
-                await db.products.update_one(
-                    {"id": pi_doc['product_id']},
-                    {"$set": {
-                        "food_cost": total_food_cost,
-                        "total_cost": round(total_cost, 2),
-                        "cogs_percent": round(cogs_pct, 2),
-                        "profit_per_order": round(price - total_cost, 2)
-                    }}
-                )
-
+    await cascade_ingredient_cost(input.ingredient_name, cost_per_unit)
     return entry
 
 # -------- UNIQUE INGREDIENTS LIST --------
@@ -1714,16 +1701,8 @@ async def get_historical_comparison():
 
 # -------- SEED DATA --------
 
-@api_router.post("/seed")
-async def seed_data():
-    """Seed initial data from the Excel file"""
-    
-    # Check if data already exists
-    existing_products = await db.products.count_documents({})
-    if existing_products > 0:
-        return {"message": "Data already seeded", "products": existing_products}
-    
-    # Products from Excel
+async def _seed_products():
+    """Seed product data from Excel."""
     products_data = [
         {"name": "Brekkie Buns", "code": "BB", "price": 10.5, "food_cost": 2.49, "packaging_cost": 0.50, "opening_stock": 25},
         {"name": "BBQ Ribs", "code": "BR", "price": 20.5, "food_cost": 5.26, "packaging_cost": 0.50, "opening_stock": 55},
@@ -1736,22 +1715,15 @@ async def seed_data():
         {"name": "Drinks", "code": "DR", "price": 5.0, "food_cost": 0, "packaging_cost": 0, "opening_stock": 47},
         {"name": "Up-sell", "code": "US", "price": 7.0, "food_cost": 1.43, "packaging_cost": 0.50, "opening_stock": 30},
     ]
-    
     for p_data in products_data:
-        product = Product(
-            name=p_data["name"],
-            code=p_data["code"],
-            price=p_data["price"],
-            food_cost=p_data["food_cost"],
-            packaging_cost=p_data["packaging_cost"],
-            opening_stock=p_data["opening_stock"],
-            current_stock=p_data["opening_stock"]
-        )
+        product = Product(**p_data, current_stock=p_data["opening_stock"])
         doc = product.model_dump()
         doc['created_at'] = doc['created_at'].isoformat()
         await db.products.insert_one(doc)
-    
-    # Markets
+    return len(products_data)
+
+async def _seed_markets():
+    """Seed market data from Excel."""
     markets_data = [
         {"name": "Grafton Market", "preset_mix": {"BB": 11.4, "BR": 9.0, "WS": 12.1, "SM": 7.2, "PP": 8.5, "WD": 6.6, "OR": 40.0, "CP": 12.1, "DR": 27.9, "US": 31.6}},
         {"name": "Britomart Market", "preset_mix": {"BB": 11.6, "BR": 10.0, "WS": 10.2, "SM": 6.5, "PP": 13.0, "WD": 18.8, "OR": 10.8, "CP": 7.0, "DR": 6.5, "US": 6.8}},
@@ -1759,18 +1731,17 @@ async def seed_data():
         {"name": "Victoria Park Market", "preset_mix": {"BB": 3.0, "BR": 15.0, "WS": 25.0, "SM": 9.0, "PP": 14.0, "WD": 1.0, "OR": 4.0, "CP": 8.0, "DR": 5.0, "US": 6.0}},
         {"name": "Long Bay Market", "preset_mix": {}},
     ]
-    
     markets_map = {}
     for m_data in markets_data:
         market = Market(name=m_data["name"], preset_mix=m_data["preset_mix"])
         await db.markets.insert_one(market.model_dump())
         markets_map[m_data["name"]] = market.id
-    
-    # Get products map
+    return markets_map, len(markets_data)
+
+async def _seed_sessions(markets_map):
+    """Seed historical session data from Excel."""
     products = await db.products.find({}, {"_id": 0}).to_list(100)
     products_map = {p['code']: p['id'] for p in products}
-    
-    # Historical sessions from Excel
     sessions_data = [
         {"date": "2026-02-15", "market": "Grafton Market", "cash": 300, "eftpos": 294.96, "sales": {"BB": 0, "BR": 15, "WS": 10, "SM": 6, "PP": 4, "WD": 4, "OR": 4, "CP": 9, "DR": 0, "US": 0}},
         {"date": "2026-02-20", "market": "Britomart Market", "cash": 0, "eftpos": 0, "sales": {"BB": 10, "BR": 9, "WS": 21, "SM": 13, "PP": 10, "WD": 4, "OR": 4, "CP": 0, "DR": 0, "US": 0}},
@@ -1784,40 +1755,25 @@ async def seed_data():
         {"date": "2026-04-05", "market": "Grafton Market", "cash": 300, "eftpos": 294.96, "sales": {"BB": 0, "BR": 9, "WS": 11, "SM": 4, "PP": 1, "WD": 0, "OR": 1, "CP": 8, "DR": 11, "US": 6}},
         {"date": "2026-04-08", "market": "Britomart Market", "cash": 450, "eftpos": 620.35, "sales": {"BB": 8, "BR": 12, "WS": 19, "SM": 14, "PP": 6, "WD": 3, "OR": 3, "CP": 3, "DR": 10, "US": 7}},
     ]
-    
-    session_counter = 46080
     for s_data in sessions_data:
         market_id = markets_map.get(s_data["market"], "")
-        sales_list = []
-        for code, units in s_data["sales"].items():
-            if units > 0 and code in products_map:
-                sales_list.append({
-                    "product_id": products_map[code],
-                    "units_sold": units
-                })
-        
-        session_input = SessionCreate(
-            date=s_data["date"],
-            market_id=market_id,
-            market_name=s_data["market"],
-            cash=s_data["cash"],
-            eftpos=s_data["eftpos"],
-            sales=sales_list
-        )
-        
-        # Create session (this will also update stock)
-        await create_session(session_input)
-        session_counter += 1
+        sales_list = [{"product_id": products_map[code], "units_sold": units} for code, units in s_data["sales"].items() if units > 0 and code in products_map]
+        await create_session(SessionCreate(date=s_data["date"], market_id=market_id, market_name=s_data["market"], cash=s_data["cash"], eftpos=s_data["eftpos"], sales=sales_list))
+    return len(sessions_data)
+
+@api_router.post("/seed")
+async def seed_data():
+    """Seed initial data from the Excel file"""
+    existing = await db.products.count_documents({})
+    if existing > 0:
+        return {"message": "Data already seeded", "products": existing}
     
-    # Create default allocation settings
+    n_products = await _seed_products()
+    markets_map, n_markets = await _seed_markets()
+    n_sessions = await _seed_sessions(markets_map)
     await db.allocation_settings.insert_one(AllocationSettings().model_dump())
     
-    return {
-        "message": "Data seeded successfully",
-        "products": len(products_data),
-        "markets": len(markets_data),
-        "sessions": len(sessions_data)
-    }
+    return {"message": "Data seeded successfully", "products": n_products, "markets": n_markets, "sessions": n_sessions}
 
 # Include the router in the main app
 app.include_router(api_router)

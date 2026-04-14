@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { API } from "../App";
 import { toast } from "sonner";
@@ -251,7 +251,7 @@ const Products = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     try {
       const response = await axios.get(`${API}/products`);
       setProducts(response.data);
@@ -260,11 +260,9 @@ const Products = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchProducts();
   }, []);
+
+  useEffect(() => { fetchProducts(); }, [fetchProducts]);
 
   const handleSave = async (data) => {
     try {
