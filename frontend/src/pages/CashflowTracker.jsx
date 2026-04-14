@@ -21,7 +21,6 @@ const CashflowTracker = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ month: "", sales_target: "", growth_saved: "", emergency_saved: "", notes: "" });
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchData = useCallback(async () => {
     try {
       const res = await axios.get(`${API}/cashflow`);

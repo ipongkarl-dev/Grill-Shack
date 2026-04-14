@@ -22,7 +22,6 @@ const ProductCalculator = () => {
   const [saving, setSaving] = useState(false);
   const [productDetail, setProductDetail] = useState(null);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchProducts = useCallback(async () => {
     try {
       const res = await axios.get(`${API}/products`);

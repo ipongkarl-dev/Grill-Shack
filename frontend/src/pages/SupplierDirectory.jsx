@@ -19,7 +19,6 @@ const SupplierDirectory = () => {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ name: "", contact_person: "", phone: "", email: "", address: "", products: [], notes: "" });
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchData = useCallback(async () => {
     try {
       const [sRes, pRes] = await Promise.all([

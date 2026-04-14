@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import { API } from "../App";
@@ -49,7 +49,7 @@ const StockPlanner = () => {
     fetchMarkets();
   }, []);
 
-  const calculateStockPlan = async () => {
+  const calculateStockPlan = useCallback(async () => {
     setCalculating(true);
     try {
       const params = new URLSearchParams({
@@ -66,10 +66,9 @@ const StockPlanner = () => {
     } finally {
       setCalculating(false);
     }
-  };
+  }, [targetRevenue, selectedMarket]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { calculateStockPlan(); }, []);
+  useEffect(() => { calculateStockPlan(); }, [calculateStockPlan]);
 
   if (loading) {
     return (

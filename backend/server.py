@@ -358,6 +358,93 @@ def determine_cash_status(calculated_sales: float, total_collected: float) -> st
         return "Over-collected"
     return "OK"
 
+
+def build_session_financials(totals: dict, cash: float, eftpos: float):
+    """Calculate session financial fields from sales totals and payment info."""
+    total_cogs = totals["food_cogs"] + totals["packaging"]
+    calculated_sales = totals["sales"]
+    gross_profit = calculated_sales - total_cogs
+    cogs_percent = (total_cogs / calculated_sales * 100) if calculated_sales > 0 else 0
+    total_collected = cash + eftpos
+    variance = calculated_sales - total_collected
+    status = determine_cash_status(calculated_sales, total_collected)
+    return {
+        "total_cogs": round(total_cogs, 2),
+        "calculated_sales": round(calculated_sales, 2),
+        "gross_profit": round(gross_profit, 2),
+        "cogs_percent": round(cogs_percent, 2),
+        "total_collected": total_collected,
+        "variance": round(variance, 2),
+        "status": status,
+        "food_cogs": round(totals["food_cogs"], 2),
+        "packaging": round(totals["packaging"], 2),
+        "total_units": totals["units"],
+    }
+
+
+def compute_weekly_metrics(sessions):
+    """Compute weekly activity metrics from sessions."""
+    from datetime import date as dt_date
+    week_set = set()
+    total_sales = sum(s.get('calculated_sales', 0) for s in sessions)
+    total_cogs = sum(s.get('total_cogs', 0) for s in sessions)
+    for s in sessions:
+        try:
+            parts = s.get('date', '').split('-')
+            d = dt_date(int(parts[0]), int(parts[1]), int(parts[2]))
+            week_set.add(d.isocalendar()[:2])
+        except (ValueError, TypeError, IndexError):
+            pass
+    weeks_active = max(len(week_set), 1)
+    return {
+        "total_sales": total_sales,
+        "total_cogs": total_cogs,
+        "weeks_active": weeks_active,
+        "current_weekly": total_sales / weeks_active,
+        "avg_cogs_pct": (total_cogs / total_sales) if total_sales > 0 else 0.25,
+    }
+
+
+def compute_scale_projections(target_weekly_revenue, weeks_horizon, avg_session_rev,
+                               total_sessions, weekly_metrics, products):
+    """Compute growth projections for scale planner."""
+    gst_rate_val = weekly_metrics.get("gst_rate", 0.15)
+    avg_cogs_pct = weekly_metrics["avg_cogs_pct"]
+    current_weekly = weekly_metrics["current_weekly"]
+    weeks_active = weekly_metrics["weeks_active"]
+
+    sessions_per_week_needed = target_weekly_revenue / avg_session_rev if avg_session_rev > 0 else 4
+    sessions_per_week_current = total_sessions / weeks_active
+
+    projected_gross = target_weekly_revenue * weeks_horizon
+    projected_net = projected_gross / (1 + gst_rate_val)
+    projected_cogs = projected_net * avg_cogs_pct
+    projected_profit = projected_net - projected_cogs
+
+    total_stock_value = sum(p.get('current_stock', 0) * p.get('food_cost', 0) for p in products)
+    weekly_stock_needed = target_weekly_revenue * avg_cogs_pct
+
+    revenue_gap = target_weekly_revenue - current_weekly
+    growth_pct = (revenue_gap / current_weekly * 100) if current_weekly > 0 else 0
+
+    return {
+        "sessions_per_week_current": round(sessions_per_week_current, 1),
+        "sessions_per_week_needed": round(sessions_per_week_needed, 1),
+        "revenue_gap": round(revenue_gap, 2),
+        "growth_needed_pct": round(growth_pct, 1),
+        "projections": {
+            "gross_revenue": round(projected_gross, 2),
+            "net_revenue": round(projected_net, 2),
+            "total_cogs": round(projected_cogs, 2),
+            "total_profit": round(projected_profit, 2),
+        },
+        "investment": {
+            "current_stock_value": round(total_stock_value, 2),
+            "weekly_stock_investment": round(weekly_stock_needed, 2),
+            "total_stock_investment": round(weekly_stock_needed * weeks_horizon, 2),
+        },
+    }
+
 def aggregate_by_period(sessions: list, key_fn) -> dict:
     """Generic aggregation helper for sessions by a period key function."""
     period_data = {}
@@ -415,7 +502,7 @@ async def create_product(input: ProductCreate):
 
 @api_router.put("/products/{product_id}", response_model=Product)
 async def update_product(product_id: str, input: ProductUpdate):
-    update_data = {k: v for k, v in input.model_dump().items() if v is not None}  # noqa: E711
+    update_data = {k: v for k, v in input.model_dump().items() if v is not None}
     if not update_data:
         raise HTTPException(status_code=400, detail="No data to update")
     
@@ -509,7 +596,6 @@ async def create_session(input: SessionCreate):
     products = await db.products.find({}, {"_id": 0}).to_list(100)
     products_map = {p['id']: p for p in products}
 
-    # Process sales using helper
     session_sales, totals = process_session_sales(input.sales, products_map)
 
     # Update product stock for each sold item
@@ -519,15 +605,7 @@ async def create_session(input: SessionCreate):
             new_stock = max(0, product['current_stock'] - sale.units_sold)
             await db.products.update_one({"id": sale.product_id}, {"$set": {"current_stock": new_stock}})
 
-    # Derived calculations
-    total_cogs = totals["food_cogs"] + totals["packaging"]
-    calculated_sales = totals["sales"]
-    gross_profit = calculated_sales - total_cogs
-    cogs_percent = (total_cogs / calculated_sales * 100) if calculated_sales > 0 else 0
-    total_collected = input.cash + input.eftpos
-    variance = calculated_sales - total_collected
-    status = determine_cash_status(calculated_sales, total_collected)
-
+    fin = build_session_financials(totals, input.cash, input.eftpos)
     session_id = await get_next_session_id()
 
     session = Session(
@@ -537,17 +615,17 @@ async def create_session(input: SessionCreate):
         market_name=input.market_name,
         cash=input.cash,
         eftpos=input.eftpos,
-        total_collected=total_collected,
+        total_collected=fin["total_collected"],
         sales=[s.model_dump() for s in session_sales],
-        total_units=totals["units"],
-        calculated_sales=round(calculated_sales, 2),
-        variance=round(variance, 2),
-        status=status,
-        food_cogs=round(totals["food_cogs"], 2),
-        packaging=round(totals["packaging"], 2),
-        total_cogs=round(total_cogs, 2),
-        gross_profit=round(gross_profit, 2),
-        cogs_percent=round(cogs_percent, 2),
+        total_units=fin["total_units"],
+        calculated_sales=fin["calculated_sales"],
+        variance=fin["variance"],
+        status=fin["status"],
+        food_cogs=fin["food_cogs"],
+        packaging=fin["packaging"],
+        total_cogs=fin["total_cogs"],
+        gross_profit=fin["gross_profit"],
+        cogs_percent=fin["cogs_percent"],
         opening_float=input.opening_float,
         cash_expenses=input.cash_expenses,
         expense_notes=input.expense_notes,
@@ -574,32 +652,26 @@ async def update_session(session_id: str, input: Dict[str, Any]):
         products = await db.products.find({}, {"_id": 0}).to_list(100)
         products_map = {p['id']: p for p in products}
         session_sales, totals = process_session_sales(input['sales'], products_map)
-        total_cogs = totals["food_cogs"] + totals["packaging"]
-        calculated_sales = totals["sales"]
-        gross_profit = calculated_sales - total_cogs
-        cogs_percent = (total_cogs / calculated_sales * 100) if calculated_sales > 0 else 0
-
         cash = input.get('cash', existing.get('cash', 0))
         eftpos = input.get('eftpos', existing.get('eftpos', 0))
-        total_collected = cash + eftpos
-        variance = calculated_sales - total_collected
+        fin = build_session_financials(totals, cash, eftpos)
 
         await db.sessions.update_one({"id": session_id}, {"$set": {
             "date": input.get('date', existing.get('date')),
             "market_id": input.get('market_id', existing.get('market_id')),
             "market_name": input.get('market_name', existing.get('market_name')),
             "cash": cash, "eftpos": eftpos,
-            "total_collected": total_collected,
+            "total_collected": fin["total_collected"],
             "sales": [s.model_dump() for s in session_sales],
-            "total_units": totals["units"],
-            "calculated_sales": round(calculated_sales, 2),
-            "variance": round(variance, 2),
-            "status": determine_cash_status(calculated_sales, total_collected),
-            "food_cogs": round(totals["food_cogs"], 2),
-            "packaging": round(totals["packaging"], 2),
-            "total_cogs": round(total_cogs, 2),
-            "gross_profit": round(gross_profit, 2),
-            "cogs_percent": round(cogs_percent, 2),
+            "total_units": fin["total_units"],
+            "calculated_sales": fin["calculated_sales"],
+            "variance": fin["variance"],
+            "status": fin["status"],
+            "food_cogs": fin["food_cogs"],
+            "packaging": fin["packaging"],
+            "total_cogs": fin["total_cogs"],
+            "gross_profit": fin["gross_profit"],
+            "cogs_percent": fin["cogs_percent"],
             "opening_float": input.get('opening_float', existing.get('opening_float', 0)),
             "cash_expenses": input.get('cash_expenses', existing.get('cash_expenses', 0)),
             "expense_notes": input.get('expense_notes', existing.get('expense_notes', '')),
@@ -1314,67 +1386,25 @@ async def get_scale_planner(
     settings_doc = await db.allocation_settings.find_one({"id": "default"}, {"_id": 0})
     gst_rate = (settings_doc.get('gst_rate', 15) if settings_doc else 15) / 100
 
-    # Current performance metrics
     total_sessions = len(sessions)
-    total_sales = sum(s.get('calculated_sales', 0) for s in sessions)
-    total_cogs = sum(s.get('total_cogs', 0) for s in sessions)
-    avg_session_rev = total_sales / total_sessions if total_sessions > 0 else 0
-    avg_cogs_pct = (total_cogs / total_sales) if total_sales > 0 else 0.25
+    weekly = compute_weekly_metrics(sessions)
+    weekly["gst_rate"] = gst_rate
+    avg_session_rev = weekly["total_sales"] / total_sessions if total_sessions > 0 else 0
 
-    # Determine current weekly average
-    from datetime import date as dt_date
-    week_set = set()
-    for s in sessions:
-        try:
-            parts = s.get('date', '').split('-')
-            d = dt_date(int(parts[0]), int(parts[1]), int(parts[2]))
-            week_set.add(d.isocalendar()[:2])
-        except (ValueError, TypeError, IndexError):
-            pass
-    weeks_active = max(len(week_set), 1)
-    current_weekly = total_sales / weeks_active
-
-    # Sessions needed per week to hit target
-    sessions_per_week_needed = target_weekly_revenue / avg_session_rev if avg_session_rev > 0 else 4
-    sessions_per_week_current = total_sessions / weeks_active
-
-    # Financial projections
-    projected_gross = target_weekly_revenue * weeks_horizon
-    projected_net = projected_gross / (1 + gst_rate)
-    projected_cogs = projected_net * avg_cogs_pct
-    projected_profit = projected_net - projected_cogs
-
-    # Stock investment needed
-    total_stock_value = sum(p.get('current_stock', 0) * p.get('food_cost', 0) for p in products)
-    weekly_stock_needed = target_weekly_revenue * avg_cogs_pct
-
-    # Growth gap
-    revenue_gap = target_weekly_revenue - current_weekly
-    growth_pct = (revenue_gap / current_weekly * 100) if current_weekly > 0 else 0
+    projections = compute_scale_projections(
+        target_weekly_revenue, weeks_horizon, avg_session_rev,
+        total_sessions, weekly, products
+    )
 
     return {
         'target_weekly_revenue': target_weekly_revenue,
         'weeks_horizon': weeks_horizon,
-        'current_weekly_avg': round(current_weekly, 2),
-        'revenue_gap': round(revenue_gap, 2),
-        'growth_needed_pct': round(growth_pct, 1),
+        'current_weekly_avg': round(weekly["current_weekly"], 2),
         'avg_session_revenue': round(avg_session_rev, 2),
-        'sessions_per_week_current': round(sessions_per_week_current, 1),
-        'sessions_per_week_needed': round(sessions_per_week_needed, 1),
-        'avg_cogs_percent': round(avg_cogs_pct * 100, 1),
-        'projections': {
-            'gross_revenue': round(projected_gross, 2),
-            'net_revenue': round(projected_net, 2),
-            'total_cogs': round(projected_cogs, 2),
-            'total_profit': round(projected_profit, 2),
-        },
-        'investment': {
-            'current_stock_value': round(total_stock_value, 2),
-            'weekly_stock_investment': round(weekly_stock_needed, 2),
-            'total_stock_investment': round(weekly_stock_needed * weeks_horizon, 2),
-        },
-        'weeks_active': weeks_active,
-        'total_sessions': total_sessions
+        'avg_cogs_percent': round(weekly["avg_cogs_pct"] * 100, 1),
+        'weeks_active': weekly["weeks_active"],
+        'total_sessions': total_sessions,
+        **projections,
     }
 
 

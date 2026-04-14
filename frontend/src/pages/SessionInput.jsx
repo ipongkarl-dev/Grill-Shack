@@ -10,6 +10,7 @@ import { Calendar } from "../components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import SessionSummaryPanel from "../components/SessionSummaryPanel";
+import { ProductSalesGrid } from "../components/ProductSalesGrid";
 import { format } from "date-fns";
 import { CalendarIcon, Plus, Save, Trash2 } from "lucide-react";
 
@@ -52,7 +53,6 @@ const SessionInput = ({ user }) => {
     cogsPercent: 0
   });
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchInitialData = useCallback(async () => {
       try {
         const [productsRes, marketsRes] = await Promise.all([
@@ -318,25 +318,7 @@ const SessionInput = ({ user }) => {
             </div>
 
             {/* Product Sales */}
-            <div>
-              <Label className="text-zinc-400 mb-3 block">Product Sales (Units)</Label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-                {products.map(product => (
-                  <div key={product.id} className="space-y-1">
-                    <label className="text-xs text-zinc-500">{product.name}</label>
-                    <Input
-                      type="number"
-                      min="0"
-                      value={sales[product.id] || ""}
-                      onChange={(e) => handleSaleChange(product.id, e.target.value)}
-                      className="bg-zinc-800 border-zinc-700 text-center"
-                      placeholder="0"
-                      data-testid={`product-${product.code}-input`}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
+            <ProductSalesGrid products={products} sales={sales} onSaleChange={handleSaleChange} />
 
             {/* Notes */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

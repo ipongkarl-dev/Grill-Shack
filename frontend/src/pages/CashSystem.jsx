@@ -35,7 +35,6 @@ const CashSystem = () => {
     expense_notes: ""
   });
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchSessions = useCallback(async () => {
     try {
       const response = await axios.get(`${API}/sessions?limit=50`);

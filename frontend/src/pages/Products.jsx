@@ -251,7 +251,6 @@ const Products = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchProducts = useCallback(async () => {
     try {
       const response = await axios.get(`${API}/products`);

@@ -31,7 +31,6 @@ const PrepChecklist = () => {
       setCheckedItems(initial);
     } catch (_e) { toast.error('Failed to load data'); }
     finally { setLoading(false); }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => { fetchChecklist(); }, [fetchChecklist]);

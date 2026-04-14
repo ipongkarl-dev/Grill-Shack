@@ -224,7 +224,7 @@ function App() {
   };
 
   const handleLogout = async () => {
-    try { await axios.post(`${API}/auth/logout`, {}, { withCredentials: true }); } catch (_err) { /* logout best-effort */ }
+    try { await axios.post(`${API}/auth/logout`, {}, { withCredentials: true }); } catch (err) { console.error('Logout error:', err); }
     setUser(null);
     delete axios.defaults.headers.common['Authorization'];
     toast.success("Logged out");
