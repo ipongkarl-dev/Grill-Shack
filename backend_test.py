@@ -296,6 +296,88 @@ class RestaurantAPITester:
         success, _ = self.run_test("Export Products CSV", "GET", "export/products", 200)
         return success
 
+    def test_phase3_endpoints(self):
+        """Test Phase 3 new endpoints: Market Comparison, Weekly Control, Refill Trends, Scale Planner"""
+        print("\n🚀 TESTING PHASE 3 NEW ENDPOINTS")
+        
+        # Test Market Comparison endpoint
+        success, market_data = self.run_test("Market Comparison", "GET", "dashboard/market-comparison", 200)
+        if not success:
+            return False
+        
+        if isinstance(market_data, list) and len(market_data) > 0:
+            print(f"   Found {len(market_data)} markets in comparison")
+            # Verify expected fields in first market
+            first_market = market_data[0]
+            expected_fields = ['market', 'sessions', 'total_sales', 'total_profit', 'avg_session_revenue', 'cogs_percent', 'profit_margin']
+            missing_fields = [field for field in expected_fields if field not in first_market]
+            if missing_fields:
+                print(f"❌ Missing fields in market comparison: {missing_fields}")
+                return False
+            print(f"   Top market: {first_market.get('market')} with ${first_market.get('total_profit', 0)} profit")
+        else:
+            print("❌ Market comparison returned empty or invalid data")
+            return False
+        
+        # Test Weekly Control endpoint
+        success, weekly_data = self.run_test("Weekly Control", "GET", "dashboard/weekly-control", 200)
+        if not success:
+            return False
+        
+        if isinstance(weekly_data, list) and len(weekly_data) > 0:
+            print(f"   Found {len(weekly_data)} weeks of data")
+            # Verify expected fields in first week
+            first_week = weekly_data[0]
+            expected_fields = ['week', 'sessions', 'sales', 'cash', 'eftpos', 'total_cogs', 'gross_profit', 'net_profit']
+            missing_fields = [field for field in expected_fields if field not in first_week]
+            if missing_fields:
+                print(f"❌ Missing fields in weekly control: {missing_fields}")
+                return False
+            print(f"   Latest week: {first_week.get('week')} with ${first_week.get('sales', 0)} sales")
+        else:
+            print("❌ Weekly control returned empty or invalid data")
+            return False
+        
+        # Test Refill Trends endpoint
+        success, refill_data = self.run_test("Refill Trends", "GET", "dashboard/refill-trends", 200)
+        if not success:
+            return False
+        
+        if isinstance(refill_data, list) and len(refill_data) > 0:
+            print(f"   Found {len(refill_data)} products with cost trends")
+            # Verify expected fields in first product
+            first_product = refill_data[0]
+            expected_fields = ['product_id', 'name', 'current_cost', 'avg_cost', 'cost_trend_pct', 'cost_history']
+            missing_fields = [field for field in expected_fields if field not in first_product]
+            if missing_fields:
+                print(f"❌ Missing fields in refill trends: {missing_fields}")
+                return False
+            print(f"   Top product: {first_product.get('name')} with {len(first_product.get('cost_history', []))} cost records")
+        else:
+            print("❌ Refill trends returned empty or invalid data")
+            return False
+        
+        # Test Scale Planner endpoint
+        success, scale_data = self.run_test("Scale Planner", "GET", "dashboard/scale-planner", 200, params={"target_weekly_revenue": 3000, "weeks_horizon": 12})
+        if not success:
+            return False
+        
+        if isinstance(scale_data, dict):
+            expected_fields = ['target_weekly_revenue', 'current_weekly_avg', 'growth_needed_pct', 'sessions_per_week_needed', 'projections', 'investment']
+            missing_fields = [field for field in expected_fields if field not in scale_data]
+            if missing_fields:
+                print(f"❌ Missing fields in scale planner: {missing_fields}")
+                return False
+            print(f"   Target: ${scale_data.get('target_weekly_revenue', 0)}/week")
+            print(f"   Current: ${scale_data.get('current_weekly_avg', 0)}/week")
+            print(f"   Growth needed: {scale_data.get('growth_needed_pct', 0)}%")
+            print(f"   Projected profit: ${scale_data.get('projections', {}).get('total_profit', 0)}")
+        else:
+            print("❌ Scale planner returned invalid data format")
+            return False
+        
+        return True
+
     def test_markets_crud(self):
         """Test markets CRUD operations"""
         print("\n🏪 TESTING MARKETS CRUD")
@@ -343,7 +425,8 @@ class RestaurantAPITester:
             self.test_inventory_endpoint,
             self.test_cashflow_endpoints,
             self.test_product_ingredients_endpoints,
-            self.test_export_endpoints
+            self.test_export_endpoints,
+            self.test_phase3_endpoints
         ]
         
         for test in tests:

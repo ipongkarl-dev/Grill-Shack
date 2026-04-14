@@ -947,6 +947,246 @@ async def export_products_csv():
         headers={"Content-Disposition": "attachment; filename=products_export.csv"}
     )
 
+# -------- MARKET COMPARISON --------
+
+@api_router.get("/dashboard/market-comparison")
+async def get_market_comparison():
+    sessions = await db.sessions.find({}, {"_id": 0}).to_list(1000)
+    products = await db.products.find({}, {"_id": 0}).to_list(100)
+    products_map = {p['id']: p for p in products}
+
+    market_data = {}
+    for s in sessions:
+        mname = s.get('market_name', 'Unknown')
+        if mname not in market_data:
+            market_data[mname] = {
+                'market': mname,
+                'sessions': 0, 'total_sales': 0, 'total_cogs': 0,
+                'total_profit': 0, 'total_units': 0,
+                'product_units': {}
+            }
+        md = market_data[mname]
+        md['sessions'] += 1
+        md['total_sales'] += s.get('calculated_sales', 0)
+        md['total_cogs'] += s.get('total_cogs', 0)
+        md['total_profit'] += s.get('gross_profit', 0)
+        md['total_units'] += s.get('total_units', 0)
+        for sale in s.get('sales', []):
+            pname = sale.get('product_name', '')
+            md['product_units'][pname] = md['product_units'].get(pname, 0) + sale.get('units_sold', 0)
+
+    result = []
+    for mname, md in market_data.items():
+        avg_session_rev = md['total_sales'] / md['sessions'] if md['sessions'] > 0 else 0
+        cogs_pct = (md['total_cogs'] / md['total_sales'] * 100) if md['total_sales'] > 0 else 0
+        profit_margin = (md['total_profit'] / md['total_sales'] * 100) if md['total_sales'] > 0 else 0
+        top_products = sorted(md['product_units'].items(), key=lambda x: x[1], reverse=True)[:3]
+        result.append({
+            'market': mname,
+            'sessions': md['sessions'],
+            'total_sales': round(md['total_sales'], 2),
+            'total_cogs': round(md['total_cogs'], 2),
+            'total_profit': round(md['total_profit'], 2),
+            'total_units': md['total_units'],
+            'avg_session_revenue': round(avg_session_rev, 2),
+            'cogs_percent': round(cogs_pct, 2),
+            'profit_margin': round(profit_margin, 2),
+            'top_products': [{'name': n, 'units': u} for n, u in top_products]
+        })
+    result.sort(key=lambda x: x['total_profit'], reverse=True)
+    return result
+
+# -------- WEEKLY CONTROL --------
+
+@api_router.get("/dashboard/weekly-control")
+async def get_weekly_control():
+    sessions = await db.sessions.find({}, {"_id": 0}).sort("date", 1).to_list(1000)
+    from datetime import date as dt_date
+    week_data = {}
+    for s in sessions:
+        date_str = s.get('date', '')
+        if not date_str:
+            continue
+        try:
+            parts = date_str.split('-')
+            d = dt_date(int(parts[0]), int(parts[1]), int(parts[2]))
+            iso = d.isocalendar()
+            week_key = f"{iso[0]}-W{iso[1]:02d}"
+        except:
+            continue
+
+        if week_key not in week_data:
+            week_data[week_key] = {
+                'week': week_key, 'start_date': date_str,
+                'sessions': 0, 'sales': 0, 'cash': 0, 'eftpos': 0,
+                'total_collected': 0, 'total_cogs': 0, 'gross_profit': 0,
+                'expenses': 0, 'total_units': 0, 'markets': set()
+            }
+        wd = week_data[week_key]
+        wd['sessions'] += 1
+        wd['sales'] += s.get('calculated_sales', 0)
+        wd['cash'] += s.get('cash', 0)
+        wd['eftpos'] += s.get('eftpos', 0)
+        wd['total_collected'] += s.get('total_collected', 0)
+        wd['total_cogs'] += s.get('total_cogs', 0)
+        wd['gross_profit'] += s.get('gross_profit', 0)
+        wd['expenses'] += s.get('cash_expenses', 0)
+        wd['total_units'] += s.get('total_units', 0)
+        wd['markets'].add(s.get('market_name', ''))
+        wd['end_date'] = date_str
+
+    result = []
+    for wk, wd in sorted(week_data.items()):
+        net_profit = wd['gross_profit'] - wd['expenses']
+        result.append({
+            'week': wd['week'],
+            'start_date': wd['start_date'],
+            'end_date': wd.get('end_date', wd['start_date']),
+            'sessions': wd['sessions'],
+            'markets': list(wd['markets']),
+            'sales': round(wd['sales'], 2),
+            'cash': round(wd['cash'], 2),
+            'eftpos': round(wd['eftpos'], 2),
+            'total_collected': round(wd['total_collected'], 2),
+            'total_cogs': round(wd['total_cogs'], 2),
+            'gross_profit': round(wd['gross_profit'], 2),
+            'expenses': round(wd['expenses'], 2),
+            'net_profit': round(net_profit, 2),
+            'total_units': wd['total_units'],
+            'cogs_percent': round((wd['total_cogs'] / wd['sales'] * 100) if wd['sales'] > 0 else 0, 2)
+        })
+    return result
+
+# -------- REFILL COST TRENDS --------
+
+@api_router.get("/dashboard/refill-trends")
+async def get_refill_trends():
+    products = await db.products.find({}, {"_id": 0}).to_list(100)
+    inventory = await db.inventory.find({}, {"_id": 0}).sort("date", 1).to_list(1000)
+    sessions = await db.sessions.find({}, {"_id": 0}).to_list(1000)
+
+    # Aggregate inventory costs over time per product
+    product_trends = {}
+    for p in products:
+        product_trends[p['id']] = {
+            'product_id': p['id'], 'name': p['name'], 'code': p['code'],
+            'current_cost': p.get('food_cost', 0),
+            'cost_history': [], 'total_spent': 0, 'total_units_bought': 0,
+            'lifetime_units_sold': 0, 'lifetime_revenue': 0
+        }
+
+    for entry in inventory:
+        pid = entry.get('product_id')
+        if pid in product_trends:
+            cost = entry.get('cost_per_unit', 0)
+            qty = entry.get('total_added', 0)
+            product_trends[pid]['cost_history'].append({
+                'date': entry.get('date', ''),
+                'cost_per_unit': cost,
+                'units_added': qty,
+                'supplier': entry.get('supplier', '')
+            })
+            product_trends[pid]['total_spent'] += cost * qty
+            product_trends[pid]['total_units_bought'] += qty
+
+    for s in sessions:
+        for sale in s.get('sales', []):
+            pid = sale.get('product_id')
+            if pid in product_trends:
+                product_trends[pid]['lifetime_units_sold'] += sale.get('units_sold', 0)
+                product_trends[pid]['lifetime_revenue'] += sale.get('sales_value', 0)
+
+    result = []
+    for pid, pt in product_trends.items():
+        avg_cost = (pt['total_spent'] / pt['total_units_bought']) if pt['total_units_bought'] > 0 else pt['current_cost']
+        cost_trend = 0
+        if len(pt['cost_history']) >= 2:
+            first = pt['cost_history'][0]['cost_per_unit']
+            last = pt['cost_history'][-1]['cost_per_unit']
+            cost_trend = ((last - first) / first * 100) if first > 0 else 0
+        result.append({
+            **pt,
+            'avg_cost': round(avg_cost, 4),
+            'cost_trend_pct': round(cost_trend, 1)
+        })
+    result.sort(key=lambda x: x['lifetime_revenue'], reverse=True)
+    return result
+
+# -------- SCALE PLANNER --------
+
+@api_router.get("/dashboard/scale-planner")
+async def get_scale_planner(
+    target_weekly_revenue: float = 3000,
+    weeks_horizon: int = 12
+):
+    sessions = await db.sessions.find({}, {"_id": 0}).to_list(1000)
+    products = await db.products.find({}, {"_id": 0}).to_list(100)
+    settings_doc = await db.allocation_settings.find_one({"id": "default"}, {"_id": 0})
+    gst_rate = (settings_doc.get('gst_rate', 15) if settings_doc else 15) / 100
+
+    # Current performance metrics
+    total_sessions = len(sessions)
+    total_sales = sum(s.get('calculated_sales', 0) for s in sessions)
+    total_cogs = sum(s.get('total_cogs', 0) for s in sessions)
+    avg_session_rev = total_sales / total_sessions if total_sessions > 0 else 0
+    avg_cogs_pct = (total_cogs / total_sales) if total_sales > 0 else 0.25
+
+    # Determine current weekly average
+    from datetime import date as dt_date
+    week_set = set()
+    for s in sessions:
+        try:
+            parts = s.get('date', '').split('-')
+            d = dt_date(int(parts[0]), int(parts[1]), int(parts[2]))
+            week_set.add(d.isocalendar()[:2])
+        except:
+            pass
+    weeks_active = max(len(week_set), 1)
+    current_weekly = total_sales / weeks_active
+
+    # Sessions needed per week to hit target
+    sessions_per_week_needed = target_weekly_revenue / avg_session_rev if avg_session_rev > 0 else 4
+    sessions_per_week_current = total_sessions / weeks_active
+
+    # Financial projections
+    projected_gross = target_weekly_revenue * weeks_horizon
+    projected_net = projected_gross / (1 + gst_rate)
+    projected_cogs = projected_net * avg_cogs_pct
+    projected_profit = projected_net - projected_cogs
+
+    # Stock investment needed
+    total_stock_value = sum(p.get('current_stock', 0) * p.get('food_cost', 0) for p in products)
+    weekly_stock_needed = target_weekly_revenue * avg_cogs_pct
+
+    # Growth gap
+    revenue_gap = target_weekly_revenue - current_weekly
+    growth_pct = (revenue_gap / current_weekly * 100) if current_weekly > 0 else 0
+
+    return {
+        'target_weekly_revenue': target_weekly_revenue,
+        'weeks_horizon': weeks_horizon,
+        'current_weekly_avg': round(current_weekly, 2),
+        'revenue_gap': round(revenue_gap, 2),
+        'growth_needed_pct': round(growth_pct, 1),
+        'avg_session_revenue': round(avg_session_rev, 2),
+        'sessions_per_week_current': round(sessions_per_week_current, 1),
+        'sessions_per_week_needed': round(sessions_per_week_needed, 1),
+        'avg_cogs_percent': round(avg_cogs_pct * 100, 1),
+        'projections': {
+            'gross_revenue': round(projected_gross, 2),
+            'net_revenue': round(projected_net, 2),
+            'total_cogs': round(projected_cogs, 2),
+            'total_profit': round(projected_profit, 2),
+        },
+        'investment': {
+            'current_stock_value': round(total_stock_value, 2),
+            'weekly_stock_investment': round(weekly_stock_needed, 2),
+            'total_stock_investment': round(weekly_stock_needed * weeks_horizon, 2),
+        },
+        'weeks_active': weeks_active,
+        'total_sessions': total_sessions
+    }
+
 # -------- SEED DATA --------
 
 @api_router.post("/seed")

@@ -19,7 +19,11 @@ import {
   MapPin,
   Boxes,
   PiggyBank,
-  Beaker
+  Beaker,
+  GitCompare,
+  CalendarRange,
+  Receipt,
+  Rocket
 } from "lucide-react";
 
 // Pages
@@ -36,6 +40,10 @@ import MarketsPage from "./pages/MarketsPage";
 import InventoryTracker from "./pages/InventoryTracker";
 import CashflowTracker from "./pages/CashflowTracker";
 import ProductCalculator from "./pages/ProductCalculator";
+import MarketComparison from "./pages/MarketComparison";
+import WeeklyControl from "./pages/WeeklyControl";
+import RefillTrends from "./pages/RefillTrends";
+import ScalePlanner from "./pages/ScalePlanner";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
@@ -53,11 +61,15 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
     { path: "/products", icon: Package, label: "Products / COGS" },
     { path: "/calculator", icon: Beaker, label: "Product Calculator" },
     { path: "/sales", icon: BarChart3, label: "Sales Dashboard" },
+    { path: "/weekly", icon: CalendarRange, label: "Weekly Control" },
+    { path: "/compare", icon: GitCompare, label: "Market Comparison" },
     { path: "/stock", icon: Warehouse, label: "Stock Planner" },
     { path: "/inventory", icon: Boxes, label: "Inventory Tracker" },
+    { path: "/refill", icon: Receipt, label: "Refill Trends" },
     { path: "/cash", icon: DollarSign, label: "Cash System" },
     { path: "/allocation", icon: Calculator, label: "Allocation Tool" },
     { path: "/cashflow", icon: PiggyBank, label: "Cashflow Tracker" },
+    { path: "/scale", icon: Rocket, label: "Scale Planner" },
     { path: "/margin", icon: TrendingUp, label: "Margin Watch" },
     { path: "/markets", icon: MapPin, label: "Markets" },
   ];
@@ -211,6 +223,10 @@ function App() {
           <Route path="/cash" element={<CashSystem />} />
           <Route path="/allocation" element={<AllocationTool />} />
           <Route path="/cashflow" element={<CashflowTracker />} />
+          <Route path="/compare" element={<MarketComparison />} />
+          <Route path="/weekly" element={<WeeklyControl />} />
+          <Route path="/refill" element={<RefillTrends />} />
+          <Route path="/scale" element={<ScalePlanner />} />
           <Route path="/margin" element={<MarginWatch />} />
           <Route path="/markets" element={<MarketsPage />} />
         </Routes>
