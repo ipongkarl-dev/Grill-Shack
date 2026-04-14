@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import axios from "axios";
 import { API } from "../App";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -348,13 +349,22 @@ const MarginWatch = () => {
                       {formatCurrency(product.lifetime_profit)}
                     </TableCell>
                     <TableCell className="text-center font-mono text-zinc-300">
-                      {product.current_stock}
+                      {product.current_stock <= 10 ? (
+                        <Link to="/inventory" className="text-amber-500 hover:text-amber-400 underline underline-offset-2">
+                          {product.current_stock}
+                        </Link>
+                      ) : product.current_stock}
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge className={`border ${getActionColor(product.action)}`}>
-                        {getActionIcon(product.action)}
-                        <span className="ml-1">{product.action}</span>
-                      </Badge>
+                      <Link
+                        to={product.action === 'CHECK PRICE' ? '/products' : product.action === 'PROMOTE' ? '/products' : '/calculator'}
+                        data-testid={`action-${product.code}`}
+                      >
+                        <Badge className={`border cursor-pointer hover:opacity-80 transition-opacity ${getActionColor(product.action)}`}>
+                          {getActionIcon(product.action)}
+                          <span className="ml-1">{product.action}</span>
+                        </Badge>
+                      </Link>
                     </TableCell>
                   </TableRow>
                 ))}

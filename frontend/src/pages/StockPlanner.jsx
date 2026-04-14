@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import axios from "axios";
 import { API } from "../App";
 import { toast } from "sonner";
@@ -260,24 +261,28 @@ const StockPlanner = () => {
                     </TableCell>
                     <TableCell className="text-center">
                       {item.stock_alert === 'LOW' ? (
-                        <Badge className="bg-amber-500/10 text-amber-500">
-                          <AlertTriangle className="w-3 h-3 mr-1" />
-                          LOW
-                        </Badge>
+                        <Link to="/inventory" data-testid={`stock-alert-${item.code}`}>
+                          <Badge className="bg-amber-500/10 text-amber-500 cursor-pointer hover:bg-amber-500/20 transition-colors">
+                            <AlertTriangle className="w-3 h-3 mr-1" />
+                            LOW
+                          </Badge>
+                        </Link>
                       ) : (
                         <Badge className="bg-emerald-500/10 text-emerald-500">OK</Badge>
                       )}
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge 
-                        className={
-                          item.status === 'Covered' 
-                            ? "bg-emerald-500/10 text-emerald-500" 
-                            : "bg-red-500/10 text-red-500"
-                        }
-                      >
-                        {item.status}
-                      </Badge>
+                      {item.status === 'Covered' ? (
+                        <Badge className="bg-emerald-500/10 text-emerald-500">
+                          {item.status}
+                        </Badge>
+                      ) : (
+                        <Link to="/inventory" data-testid={`buy-prep-${item.code}`}>
+                          <Badge className="bg-red-500/10 text-red-500 cursor-pointer hover:bg-red-500/20 transition-colors">
+                            {item.status}
+                          </Badge>
+                        </Link>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -299,19 +304,22 @@ const StockPlanner = () => {
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {toBuyItems.map((item) => (
-                <div 
+                <Link
                   key={item.product_id}
-                  className="flex items-center justify-between p-4 rounded-lg bg-zinc-800/50 border border-red-500/20"
+                  to="/inventory"
+                  className="flex items-center justify-between p-4 rounded-lg bg-zinc-800/50 border border-red-500/20 hover:border-red-500/40 hover:-translate-y-0.5 transition-all duration-200"
+                  data-testid={`buy-card-${item.code}`}
                 >
                   <div>
                     <p className="font-medium text-zinc-200">{item.product_name}</p>
                     <p className="text-sm text-zinc-500">Current: {item.current_stock}</p>
+                    <p className="text-xs text-orange-500 mt-1">Click to record stock in</p>
                   </div>
                   <div className="text-right">
                     <p className="text-2xl font-bold text-red-500">+{item.gap_to_buy}</p>
                     <p className="text-xs text-zinc-500">units needed</p>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           </CardContent>

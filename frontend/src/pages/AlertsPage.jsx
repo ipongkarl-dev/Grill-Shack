@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import axios from "axios";
 import { API } from "../App";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -93,26 +94,32 @@ const AlertsPage = () => {
         <div className="space-y-3">
           {alerts.map(alert => {
             const style = getSeverityStyle(alert.severity);
+            const linkTo = alert.type === 'stock' ? '/inventory' : alert.type === 'cash' ? '/cash' : '/products';
             return (
-              <Card key={alert.id} className={`bg-zinc-900 border ${style.card} transition-all duration-200 hover:-translate-y-0.5`}>
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-4">
-                    <div className={`p-2 rounded-lg ${style.badge}`}>
-                      {getIcon(alert.type)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-semibold text-zinc-200">{alert.title}</p>
-                        <Badge className={style.badge}>
-                          {alert.severity.charAt(0).toUpperCase() + alert.severity.slice(1)}
-                        </Badge>
-                        <Badge className="bg-zinc-800 text-zinc-400 text-xs">{alert.type}</Badge>
+              <Link key={alert.id} to={linkTo} data-testid={`alert-link-${alert.id}`}>
+                <Card className={`bg-zinc-900 border ${style.card} transition-all duration-200 hover:-translate-y-0.5 cursor-pointer`}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-4">
+                      <div className={`p-2 rounded-lg ${style.badge}`}>
+                        {getIcon(alert.type)}
                       </div>
-                      <p className="text-sm text-zinc-400 mt-1">{alert.message}</p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-semibold text-zinc-200">{alert.title}</p>
+                          <Badge className={style.badge}>
+                            {alert.severity.charAt(0).toUpperCase() + alert.severity.slice(1)}
+                          </Badge>
+                          <Badge className="bg-zinc-800 text-zinc-400 text-xs">{alert.type}</Badge>
+                        </div>
+                        <p className="text-sm text-zinc-400 mt-1">{alert.message}</p>
+                        <p className="text-xs text-orange-500 mt-1">
+                          Click to {alert.type === 'stock' ? 'restock' : alert.type === 'cash' ? 'reconcile' : 'adjust pricing'}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </Link>
             );
           })}
         </div>

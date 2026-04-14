@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import axios from "axios";
 import { API } from "../App";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -297,13 +298,16 @@ const Dashboard = () => {
             {kpis?.low_stock_products?.length > 0 ? (
               <div className="space-y-3">
                 {kpis.low_stock_products.map((product) => (
-                  <div 
+                  <Link 
                     key={product.id}
-                    className="flex items-center justify-between p-3 rounded-lg bg-amber-500/5 border border-amber-500/20"
+                    to="/inventory"
+                    className="flex items-center justify-between p-3 rounded-lg bg-amber-500/5 border border-amber-500/20 hover:border-amber-500/40 hover:-translate-y-0.5 transition-all duration-200"
+                    data-testid={`low-stock-${product.code}`}
                   >
                     <div>
                       <p className="font-medium text-zinc-200">{product.name}</p>
                       <p className="text-sm text-zinc-500">Code: {product.code}</p>
+                      <p className="text-xs text-orange-500 mt-1">Click to restock</p>
                     </div>
                     <div className="text-right">
                       <p className="font-mono font-medium text-amber-500">
@@ -313,7 +317,7 @@ const Dashboard = () => {
                         Reorder at: {product.reorder_point}
                       </p>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             ) : (
