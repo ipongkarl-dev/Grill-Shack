@@ -565,28 +565,63 @@ async def create_session(input: SessionCreate):
 
 @api_router.put("/sessions/{session_id}")
 async def update_session(session_id: str, input: Dict[str, Any]):
-    # Allow updating cash, eftpos, notes, expenses
-    allowed_fields = ['cash', 'eftpos', 'opening_float', 'cash_expenses', 'expense_notes', 'notes']
-    update_data = {k: v for k, v in input.items() if k in allowed_fields}
-    
-    if 'cash' in update_data or 'eftpos' in update_data:
-        existing = await db.sessions.find_one({"id": session_id}, {"_id": 0})
-        if existing:
-            cash = update_data.get('cash', existing.get('cash', 0))
-            eftpos = update_data.get('eftpos', existing.get('eftpos', 0))
-            total_collected = cash + eftpos
-            calculated_sales = existing.get('calculated_sales', 0)
-            variance = calculated_sales - total_collected
-            
-            status = determine_cash_status(calculated_sales, total_collected)
-            
-            update_data['total_collected'] = total_collected
-            update_data['variance'] = round(variance, 2)
-            update_data['status'] = status
-    
-    result = await db.sessions.update_one({"id": session_id}, {"$set": update_data})
-    if result.matched_count == 0:
+    existing = await db.sessions.find_one({"id": session_id}, {"_id": 0})
+    if not existing:
         raise HTTPException(status_code=404, detail="Session not found")
+
+    # If sales are being re-entered, recalculate everything
+    if 'sales' in input:
+        products = await db.products.find({}, {"_id": 0}).to_list(100)
+        products_map = {p['id']: p for p in products}
+        session_sales, totals = process_session_sales(input['sales'], products_map)
+        total_cogs = totals["food_cogs"] + totals["packaging"]
+        calculated_sales = totals["sales"]
+        gross_profit = calculated_sales - total_cogs
+        cogs_percent = (total_cogs / calculated_sales * 100) if calculated_sales > 0 else 0
+
+        cash = input.get('cash', existing.get('cash', 0))
+        eftpos = input.get('eftpos', existing.get('eftpos', 0))
+        total_collected = cash + eftpos
+        variance = calculated_sales - total_collected
+
+        await db.sessions.update_one({"id": session_id}, {"$set": {
+            "date": input.get('date', existing.get('date')),
+            "market_id": input.get('market_id', existing.get('market_id')),
+            "market_name": input.get('market_name', existing.get('market_name')),
+            "cash": cash, "eftpos": eftpos,
+            "total_collected": total_collected,
+            "sales": [s.model_dump() for s in session_sales],
+            "total_units": totals["units"],
+            "calculated_sales": round(calculated_sales, 2),
+            "variance": round(variance, 2),
+            "status": determine_cash_status(calculated_sales, total_collected),
+            "food_cogs": round(totals["food_cogs"], 2),
+            "packaging": round(totals["packaging"], 2),
+            "total_cogs": round(total_cogs, 2),
+            "gross_profit": round(gross_profit, 2),
+            "cogs_percent": round(cogs_percent, 2),
+            "opening_float": input.get('opening_float', existing.get('opening_float', 0)),
+            "cash_expenses": input.get('cash_expenses', existing.get('cash_expenses', 0)),
+            "expense_notes": input.get('expense_notes', existing.get('expense_notes', '')),
+            "notes": input.get('notes', existing.get('notes', '')),
+        }})
+        return {"message": "Session fully updated with recalculated COGS"}
+
+    # Otherwise just update allowed fields
+    allowed_fields = ['cash', 'eftpos', 'opening_float', 'cash_expenses', 'expense_notes', 'notes', 'date', 'market_id', 'market_name']
+    update_data = {k: v for k, v in input.items() if k in allowed_fields}
+
+    if 'cash' in update_data or 'eftpos' in update_data:
+        cash = update_data.get('cash', existing.get('cash', 0))
+        eftpos = update_data.get('eftpos', existing.get('eftpos', 0))
+        total_collected = cash + eftpos
+        calculated_sales = existing.get('calculated_sales', 0)
+        variance = calculated_sales - total_collected
+        update_data['total_collected'] = total_collected
+        update_data['variance'] = round(variance, 2)
+        update_data['status'] = determine_cash_status(calculated_sales, total_collected)
+
+    await db.sessions.update_one({"id": session_id}, {"$set": update_data})
     return {"message": "Session updated"}
 
 @api_router.delete("/sessions/{session_id}")
@@ -940,6 +975,30 @@ async def get_unique_ingredients():
                 'last_purchased': e.get('date', '')
             }
     return list(seen.values())
+
+
+@api_router.put("/inventory/{entry_id}")
+async def update_inventory_entry(entry_id: str, input: InventoryEntryCreate):
+    total_qty = input.packs_in * input.units_per_pack
+    cost_per_unit = (input.pack_cost / input.units_per_pack) if input.units_per_pack > 0 else 0
+    result = await db.inventory.update_one({"id": entry_id}, {"$set": {
+        "ingredient_name": input.ingredient_name, "date": input.date,
+        "packs_in": input.packs_in, "units_per_pack": input.units_per_pack,
+        "unit": input.unit, "total_qty_added": round(total_qty, 4),
+        "pack_cost": input.pack_cost, "cost_per_unit": round(cost_per_unit, 4),
+        "supplier": input.supplier, "notes": input.notes
+    }})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    return {"message": "Updated"}
+
+@api_router.delete("/inventory/{entry_id}")
+async def delete_inventory_entry(entry_id: str):
+    result = await db.inventory.delete_one({"id": entry_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    return {"message": "Deleted"}
+
 
 # -------- CASHFLOW TRACKER --------
 

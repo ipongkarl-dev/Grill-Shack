@@ -22,7 +22,7 @@ import {
   DialogTitle,
 } from "../components/ui/dialog";
 import { Label } from "../components/ui/label";
-import { DollarSign, CreditCard, Banknote, AlertCircle, CheckCircle, Pencil } from "lucide-react";
+import { DollarSign, CreditCard, Banknote, AlertCircle, CheckCircle, Pencil, Trash2 } from "lucide-react";
 
 const formatCurrency = (value) => {
   return new Intl.NumberFormat('en-NZ', {
@@ -84,6 +84,17 @@ const CashSystem = () => {
       fetchSessions();
     } catch (_err) {
       toast.error("Failed to update session");
+    }
+  };
+
+  const handleDeleteSession = async (sessionId) => {
+    if (!window.confirm("Delete this session? This cannot be undone.")) return;
+    try {
+      await axios.delete(`${API}/sessions/${sessionId}`);
+      toast.success("Session deleted");
+      fetchSessions();
+    } catch (_err) {
+      toast.error("Failed to delete session");
     }
   };
 
@@ -270,15 +281,14 @@ const CashSystem = () => {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => openEdit(session)}
-                        className="text-zinc-400 hover:text-zinc-200"
-                        data-testid={`edit-session-${session.session_id}`}
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </Button>
+                      <div className="flex justify-center gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => openEdit(session)} className="text-zinc-400 hover:text-zinc-200" data-testid={`edit-session-${session.session_id}`}>
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => handleDeleteSession(session.id)} className="text-zinc-400 hover:text-red-500" data-testid={`delete-session-${session.session_id}`}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

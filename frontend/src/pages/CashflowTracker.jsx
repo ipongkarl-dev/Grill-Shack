@@ -53,7 +53,18 @@ const CashflowTracker = () => {
       await axios.delete(`${API}/cashflow/${month}`);
       toast.success("Deleted");
       fetchData();
-    } catch (e) { toast.error("Failed to delete"); }
+    } catch (_e) { toast.error("Failed to delete"); }
+  };
+
+  const openEdit = (target) => {
+    setForm({
+      month: target.month,
+      sales_target: target.sales_target?.toString() || "",
+      growth_saved: target.growth_saved?.toString() || "",
+      emergency_saved: target.emergency_saved?.toString() || "",
+      notes: target.notes || ""
+    });
+    setDialogOpen(true);
   };
 
   if (loading) return <div className="h-96 bg-zinc-900 rounded-xl animate-pulse" />;
@@ -240,7 +251,10 @@ const CashflowTracker = () => {
                       <TableCell className="text-right font-mono text-purple-400">{formatCurrency(t.emergency_saved || 0)}</TableCell>
                       <TableCell className="text-zinc-500 text-xs max-w-[150px] truncate">{t.notes || '-'}</TableCell>
                       <TableCell className="text-right">
-                        <Button size="sm" variant="ghost" onClick={() => handleDelete(t.month)} className="text-zinc-400 hover:text-red-500">Delete</Button>
+                        <div className="flex justify-end gap-1">
+                          <Button size="sm" variant="ghost" onClick={() => openEdit(t)} className="text-zinc-400 hover:text-zinc-200" data-testid={`edit-cf-${t.month}`}>Edit</Button>
+                          <Button size="sm" variant="ghost" onClick={() => handleDelete(t.month)} className="text-zinc-400 hover:text-red-500">Delete</Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );

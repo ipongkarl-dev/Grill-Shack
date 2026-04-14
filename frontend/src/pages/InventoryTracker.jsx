@@ -13,7 +13,7 @@ import { Badge } from "../components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog";
 import { format } from "date-fns";
-import { CalendarIcon, Plus, Package, Truck, FileText, ArrowRight } from "lucide-react";
+import { CalendarIcon, Plus, Package, Truck, FileText, ArrowRight, Pencil, Trash2 } from "lucide-react";
 
 const fmt = (v) => new Intl.NumberFormat('en-NZ', { style: 'currency', currency: 'NZD', minimumFractionDigits: 2 }).format(v);
 
@@ -24,6 +24,7 @@ const InventoryTracker = () => {
   const [knownIngredients, setKnownIngredients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingEntry, setEditingEntry] = useState(null);
   const [form, setForm] = useState({
     ingredient_name: "", date: new Date(), packs_in: "", units_per_pack: "",
     unit: "kg", pack_cost: "", supplier: "", notes: ""
@@ -50,7 +51,7 @@ const InventoryTracker = () => {
     if (!form.ingredient_name.trim()) { toast.error("Ingredient name is required"); return; }
     if (!form.packs_in || parseInt(form.packs_in) <= 0) { toast.error("Enter number of packs"); return; }
     try {
-      await axios.post(`${API}/inventory`, {
+      const payload = {
         ingredient_name: form.ingredient_name.trim(),
         date: format(form.date, "yyyy-MM-dd"),
         packs_in: parseInt(form.packs_in) || 0,
@@ -59,12 +60,53 @@ const InventoryTracker = () => {
         pack_cost: parseFloat(form.pack_cost) || 0,
         supplier: form.supplier,
         notes: form.notes
-      });
-      toast.success("Raw material purchase recorded! Linked product COGS updated.");
-      setDialogOpen(false);
-      setForm({ ingredient_name: "", date: new Date(), packs_in: "", units_per_pack: "", unit: "kg", pack_cost: "", supplier: "", notes: "" });
+      };
+      if (editingEntry) {
+        await axios.put(`${API}/inventory/${editingEntry.id}`, payload);
+        toast.success("Entry updated!");
+      } else {
+        await axios.post(`${API}/inventory`, payload);
+        toast.success("Raw material purchase recorded! Linked product COGS updated.");
+      }
+      closeDialog();
       fetchData();
     } catch (_e) { toast.error("Failed to save entry"); }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Delete this inventory entry?")) return;
+    try {
+      await axios.delete(`${API}/inventory/${id}`);
+      toast.success("Entry deleted");
+      fetchData();
+    } catch (_e) { toast.error("Failed to delete"); }
+  };
+
+  const openEdit = (entry) => {
+    setEditingEntry(entry);
+    setForm({
+      ingredient_name: entry.ingredient_name,
+      date: new Date(entry.date + "T00:00:00"),
+      packs_in: entry.packs_in?.toString() || "",
+      units_per_pack: entry.units_per_pack?.toString() || "",
+      unit: entry.unit || "kg",
+      pack_cost: entry.pack_cost?.toString() || "",
+      supplier: entry.supplier || "",
+      notes: entry.notes || ""
+    });
+    setDialogOpen(true);
+  };
+
+  const openNew = () => {
+    setEditingEntry(null);
+    setForm({ ingredient_name: "", date: new Date(), packs_in: "", units_per_pack: "", unit: "kg", pack_cost: "", supplier: "", notes: "" });
+    setDialogOpen(true);
+  };
+
+  const closeDialog = () => {
+    setDialogOpen(false);
+    setEditingEntry(null);
+    setForm({ ingredient_name: "", date: new Date(), packs_in: "", units_per_pack: "", unit: "kg", pack_cost: "", supplier: "", notes: "" });
   };
 
   // Derived values for preview
@@ -84,15 +126,15 @@ const InventoryTracker = () => {
           <h1 className="text-3xl sm:text-4xl font-heading font-bold text-zinc-50">Raw Material Inventory</h1>
           <p className="text-zinc-400 mt-2">Track raw material purchases — costs auto-flow to Product Calculator and COGS</p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) closeDialog(); else openNew(); }}>
           <DialogTrigger asChild>
-            <Button className="bg-orange-500 hover:bg-orange-600" data-testid="add-inventory-btn">
+            <Button onClick={openNew} className="bg-orange-500 hover:bg-orange-600" data-testid="add-inventory-btn">
               <Plus className="w-4 h-4 mr-2" /> Record Purchase
             </Button>
           </DialogTrigger>
           <DialogContent className="bg-zinc-900 border-zinc-800 max-w-md">
             <DialogHeader>
-              <DialogTitle className="text-zinc-50 font-heading">Record Raw Material Purchase</DialogTitle>
+              <DialogTitle className="text-zinc-50 font-heading">{editingEntry ? "Edit Purchase Entry" : "Record Raw Material Purchase"}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
@@ -184,8 +226,8 @@ const InventoryTracker = () => {
               </div>
 
               <div className="flex gap-3">
-                <Button variant="outline" onClick={() => setDialogOpen(false)} className="flex-1 border-zinc-700 hover:bg-zinc-800">Cancel</Button>
-                <Button onClick={handleSubmit} className="flex-1 bg-orange-500 hover:bg-orange-600" data-testid="save-inventory-btn">Record Purchase</Button>
+                <Button variant="outline" onClick={closeDialog} className="flex-1 border-zinc-700 hover:bg-zinc-800">Cancel</Button>
+                <Button onClick={handleSubmit} className="flex-1 bg-orange-500 hover:bg-orange-600" data-testid="save-inventory-btn">{editingEntry ? "Update Entry" : "Record Purchase"}</Button>
               </div>
             </div>
           </DialogContent>
@@ -243,12 +285,13 @@ const InventoryTracker = () => {
                   <TableHead className="text-zinc-400 text-right">Cost/Unit</TableHead>
                   <TableHead className="text-zinc-400">Supplier</TableHead>
                   <TableHead className="text-zinc-400">Notes</TableHead>
+                  <TableHead className="text-zinc-400 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {entries.length === 0 ? (
                   <TableRow className="border-zinc-800">
-                    <TableCell colSpan={9} className="text-center py-12 text-zinc-500">
+                    <TableCell colSpan={10} className="text-center py-12 text-zinc-500">
                       <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
                       <p>No raw material purchases recorded yet</p>
                       <p className="text-xs mt-1">Record purchases to build cost history and auto-update COGS</p>
@@ -264,7 +307,13 @@ const InventoryTracker = () => {
                     <TableCell className="text-right font-mono text-orange-400">{fmt(e.pack_cost)}</TableCell>
                     <TableCell className="text-right font-mono text-zinc-200">{fmt(e.cost_per_unit)}/{e.unit}</TableCell>
                     <TableCell className="text-zinc-400">{e.supplier || '-'}</TableCell>
-                    <TableCell className="text-zinc-500 text-xs max-w-[200px] truncate">{e.notes || '-'}</TableCell>
+                    <TableCell className="text-zinc-500 text-xs max-w-[150px] truncate">{e.notes || '-'}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => openEdit(e)} className="text-zinc-400 hover:text-zinc-200"><Pencil className="w-3.5 h-3.5" /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => handleDelete(e.id)} className="text-zinc-400 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
