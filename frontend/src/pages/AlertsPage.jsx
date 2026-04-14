@@ -15,7 +15,7 @@ const AlertsPage = () => {
     try {
       const res = await axios.get(`${API}/alerts`);
       setAlerts(res.data);
-    } catch (e) { console.error(e); }
+    } catch (_e) { /* logged server-side */ }
     finally { setLoading(false); }
   };
 

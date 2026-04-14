@@ -17,7 +17,7 @@ const StaffPerformance = () => {
   useEffect(() => {
     axios.get(`${API}/dashboard/staff-performance`)
       .then(r => setData(r.data))
-      .catch(e => console.error(e))
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
@@ -137,7 +137,7 @@ const StaffPerformance = () => {
               <ResponsiveContainer width="50%" height="100%">
                 <PieChart>
                   <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} innerRadius={50}>
-                    {pieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                    {pieData.map((_, i) => <Cell key={`pie-${pieData[i]?.name || i}`} fill={COLORS[i % COLORS.length]} />)}
                   </Pie>
                   <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }} formatter={v => fmt(v)} />
                 </PieChart>

@@ -210,7 +210,6 @@ function App() {
           toast.success("Initial data loaded from Excel!");
         }
       } catch (error) {
-        console.error("Init error:", error);
       } finally {
         setLoading(false);
       }
@@ -224,7 +223,7 @@ function App() {
   };
 
   const handleLogout = async () => {
-    try { await axios.post(`${API}/auth/logout`, {}, { withCredentials: true }); } catch (e) {}
+    try { await axios.post(`${API}/auth/logout`, {}, { withCredentials: true }); } catch (_err) { /* logout best-effort */ }
     setUser(null);
     delete axios.defaults.headers.common['Authorization'];
     toast.success("Logged out");

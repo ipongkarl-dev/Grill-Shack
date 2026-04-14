@@ -27,7 +27,7 @@ const SupplierDirectory = () => {
       ]);
       setSuppliers(sRes.data);
       setProducts(pRes.data);
-    } catch (e) { console.error(e); }
+    } catch (_e) { /* logged server-side */ }
     finally { setLoading(false); }
   };
 

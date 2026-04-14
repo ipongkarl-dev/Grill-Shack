@@ -55,7 +55,6 @@ const SalesDashboard = () => {
         setProductPerformance(productRes.data);
         setSessions(sessionsRes.data);
       } catch (error) {
-        console.error("Error fetching data:", error);
       } finally {
         setLoading(false);
       }

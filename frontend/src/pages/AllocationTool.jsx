@@ -56,7 +56,6 @@ const AllocationTool = () => {
         const response = await axios.get(`${API}/allocation/settings`);
         setSettings(response.data);
       } catch (error) {
-        console.error("Error fetching settings:", error);
       } finally {
         setLoading(false);
       }
@@ -75,7 +74,6 @@ const AllocationTool = () => {
       const response = await axios.get(`${API}/allocation/calculate?week_sales=${weekSales}`);
       setAllocation(response.data);
     } catch (error) {
-      console.error("Error calculating allocation:", error);
       toast.error("Failed to calculate allocation");
     } finally {
       setCalculating(false);
@@ -99,7 +97,6 @@ const AllocationTool = () => {
         calculateAllocation();
       }
     } catch (error) {
-      console.error("Error saving settings:", error);
       toast.error("Failed to save settings");
     } finally {
       setSaving(false);

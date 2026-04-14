@@ -35,7 +35,7 @@ const InventoryTracker = () => {
       ]);
       setProducts(pRes.data);
       setEntries(eRes.data);
-    } catch (e) { console.error(e); }
+    } catch (_e) { /* logged server-side */ }
     finally { setLoading(false); }
   };
 

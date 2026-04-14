@@ -39,8 +39,8 @@ const StockPlanner = () => {
       try {
         const response = await axios.get(`${API}/markets`);
         setMarkets(response.data);
-      } catch (error) {
-        console.error("Error fetching markets:", error);
+      } catch (_e) {
+        /* logged server-side */
       } finally {
         setLoading(false);
       }
@@ -60,17 +60,15 @@ const StockPlanner = () => {
       
       const response = await axios.get(`${API}/stock-planner?${params}`);
       setStockPlan(response.data);
-    } catch (error) {
-      console.error("Error calculating stock plan:", error);
+    } catch (_e) {
       toast.error("Failed to calculate stock plan");
     } finally {
       setCalculating(false);
     }
   };
 
-  useEffect(() => {
-    calculateStockPlan();
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { calculateStockPlan(); }, []);
 
   if (loading) {
     return (

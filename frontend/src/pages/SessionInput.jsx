@@ -70,7 +70,6 @@ const SessionInput = ({ user }) => {
         });
         setSales(initialSales);
       } catch (error) {
-        console.error("Error fetching data:", error);
         toast.error("Failed to load data");
       } finally {
         setLoading(false);
@@ -125,7 +124,6 @@ const SessionInput = ({ user }) => {
       cogsPercent
     });
   }, [sales, cash, eftpos, products]);
-
   const handleSaleChange = (productId, value) => {
     const numValue = parseInt(value) || 0;
     setSales(prev => ({
@@ -185,7 +183,6 @@ const SessionInput = ({ user }) => {
       setNotes("");
       
     } catch (error) {
-      console.error("Error saving session:", error);
       toast.error("Failed to save session");
     } finally {
       setSaving(false);

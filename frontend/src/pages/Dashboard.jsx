@@ -87,7 +87,6 @@ const Dashboard = () => {
         setKpis(kpiRes.data);
         setMonthlyData(monthlyRes.data);
       } catch (error) {
-        console.error("Error fetching dashboard data:", error);
       } finally {
         setLoading(false);
       }
@@ -101,7 +100,7 @@ const Dashboard = () => {
         <div className="h-8 w-48 bg-zinc-800 rounded animate-pulse" />
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {[1,2,3,4].map(i => (
-            <div key={i} className="h-32 bg-zinc-900 rounded-xl animate-pulse" />
+            <div key={`skeleton-${i}`} className="h-32 bg-zinc-900 rounded-xl animate-pulse" />
           ))}
         </div>
       </div>

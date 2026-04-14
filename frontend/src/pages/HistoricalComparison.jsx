@@ -17,7 +17,7 @@ const HistoricalComparison = () => {
   useEffect(() => {
     axios.get(`${API}/dashboard/historical`)
       .then(r => setData(r.data))
-      .catch(e => console.error(e))
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
@@ -121,7 +121,7 @@ const HistoricalComparison = () => {
                       <ReferenceLine y={0} stroke="#52525b" />
                       <Bar dataKey="growth_pct" name="Growth %" radius={[4, 4, 0, 0]}>
                         {wow.map((d, i) => (
-                          <Cell key={i} fill={d.growth_pct >= 0 ? '#10b981' : '#ef4444'} />
+                          <Cell key={`wow-${d.period}`} fill={d.growth_pct >= 0 ? '#10b981' : '#ef4444'} />
                         ))}
                       </Bar>
                     </BarChart>
@@ -202,7 +202,7 @@ const HistoricalComparison = () => {
                       <ReferenceLine y={0} stroke="#52525b" />
                       <Bar dataKey="growth_pct" name="Growth %" radius={[4, 4, 0, 0]}>
                         {mom.map((d, i) => (
-                          <Cell key={i} fill={d.growth_pct >= 0 ? '#10b981' : '#ef4444'} />
+                          <Cell key={`mom-${d.period}`} fill={d.growth_pct >= 0 ? '#10b981' : '#ef4444'} />
                         ))}
                       </Bar>
                     </BarChart>

@@ -15,7 +15,7 @@ const RefillTrends = () => {
   useEffect(() => {
     axios.get(`${API}/dashboard/refill-trends`)
       .then(r => setData(r.data))
-      .catch(e => console.error(e))
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
@@ -137,7 +137,7 @@ const RefillTrends = () => {
               </TableHeader>
               <TableBody>
                 {p.cost_history.map((h, i) => (
-                  <TableRow key={i} className="border-zinc-800 hover:bg-zinc-800/50">
+                  <TableRow key={`${h.date}-${h.supplier}-${i}`} className="border-zinc-800 hover:bg-zinc-800/50">
                     <TableCell className="text-zinc-300">{h.date}</TableCell>
                     <TableCell className="text-right font-mono text-zinc-200">{fmt(h.cost_per_unit)}</TableCell>
                     <TableCell className="text-right font-mono text-emerald-500">+{h.units_added}</TableCell>

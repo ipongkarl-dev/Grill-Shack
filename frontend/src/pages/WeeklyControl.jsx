@@ -16,7 +16,7 @@ const WeeklyControl = () => {
   useEffect(() => {
     axios.get(`${API}/dashboard/weekly-control`)
       .then(r => setWeeks(r.data))
-      .catch(e => console.error(e))
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 

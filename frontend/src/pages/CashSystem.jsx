@@ -48,7 +48,6 @@ const CashSystem = () => {
       const response = await axios.get(`${API}/sessions?limit=50`);
       setSessions(response.data);
     } catch (error) {
-      console.error("Error fetching sessions:", error);
     } finally {
       setLoading(false);
     }
@@ -82,7 +81,6 @@ const CashSystem = () => {
       setEditingSession(null);
       fetchSessions();
     } catch (error) {
-      console.error("Error updating session:", error);
       toast.error("Failed to update session");
     }
   };

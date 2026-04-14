@@ -18,7 +18,7 @@ const MarketComparison = () => {
   useEffect(() => {
     axios.get(`${API}/dashboard/market-comparison`)
       .then(r => setData(r.data))
-      .catch(e => console.error(e))
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 

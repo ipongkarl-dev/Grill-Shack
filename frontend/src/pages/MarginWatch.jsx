@@ -59,7 +59,6 @@ const MarginWatch = () => {
         const response = await axios.get(`${API}/dashboard/margin-watch`);
         setMarginData(response.data);
       } catch (error) {
-        console.error("Error fetching margin data:", error);
       } finally {
         setLoading(false);
       }

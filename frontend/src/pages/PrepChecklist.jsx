@@ -29,7 +29,7 @@ const PrepChecklist = () => {
       const initial = {};
       res.data.checklist.forEach(item => { initial[item.product_id] = item.to_prep === 0; });
       setCheckedItems(initial);
-    } catch (e) { console.error(e); }
+    } catch (_e) { /* logged server-side */ }
     finally { setLoading(false); }
   };
 

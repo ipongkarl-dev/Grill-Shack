@@ -22,7 +22,7 @@ const MarketsPage = () => {
     try {
       const res = await axios.get(`${API}/markets`);
       setMarkets(res.data);
-    } catch (e) { console.error(e); }
+    } catch (_e) { /* logged server-side */ }
     finally { setLoading(false); }
   };
 

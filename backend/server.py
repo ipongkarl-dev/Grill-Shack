@@ -293,7 +293,7 @@ class ProductIngredientsUpdate(BaseModel):
 
 def serialize_doc(doc: dict) -> dict:
     """Remove MongoDB _id and serialize datetime fields"""
-    if doc is None:
+    if doc is None:  # noqa: E711 - intentional None check
         return None
     doc.pop('_id', None)
     for key, value in doc.items():
@@ -308,9 +308,72 @@ async def get_next_session_id():
         try:
             last_num = int(last_session["session_id"])
             return str(last_num + 1)
-        except:
+        except (ValueError, TypeError, IndexError):
             pass
     return "46130"
+
+
+def process_session_sales(sales_input: list, products_map: dict):
+    """Extract sales processing logic from create_session. Returns (session_sales, totals)."""
+    session_sales = []
+    totals = {"units": 0, "sales": 0, "food_cogs": 0, "packaging": 0}
+
+    for sale in sales_input:
+        product_id = sale.get('product_id')
+        units = sale.get('units_sold', 0)
+        if product_id not in products_map or units <= 0:
+            continue
+        product = products_map[product_id]
+        sales_value = units * product['price']
+        item_food_cogs = units * product['food_cost']
+        item_packaging = units * product['packaging_cost']
+        item_total_cogs = item_food_cogs + item_packaging
+
+        session_sales.append(SessionSale(
+            product_id=product_id,
+            product_name=product['name'],
+            units_sold=units,
+            unit_price=product['price'],
+            sales_value=sales_value,
+            food_cogs=item_food_cogs,
+            packaging=item_packaging,
+            total_cogs=item_total_cogs,
+            gross_profit=sales_value - item_total_cogs
+        ))
+        totals["units"] += units
+        totals["sales"] += sales_value
+        totals["food_cogs"] += item_food_cogs
+        totals["packaging"] += item_packaging
+
+    return session_sales, totals
+
+def determine_cash_status(calculated_sales: float, total_collected: float) -> str:
+    """Determine cash reconciliation status."""
+    if total_collected == 0 and calculated_sales > 0:
+        return "Missing Payment"
+    variance = calculated_sales - total_collected
+    if variance > 0.5:
+        return "Under-collected"
+    if variance < -0.5:
+        return "Over-collected"
+    return "OK"
+
+def aggregate_by_period(sessions: list, key_fn) -> dict:
+    """Generic aggregation helper for sessions by a period key function."""
+    period_data = {}
+    for s in sessions:
+        key = key_fn(s)
+        if not key:
+            continue
+        if key not in period_data:
+            period_data[key] = {'sales': 0, 'profit': 0, 'units': 0, 'sessions': 0, 'cogs': 0}
+        period_data[key]['sales'] += s.get('calculated_sales', 0)
+        period_data[key]['profit'] += s.get('gross_profit', 0)
+        period_data[key]['units'] += s.get('total_units', 0)
+        period_data[key]['sessions'] += 1
+        period_data[key]['cogs'] += s.get('total_cogs', 0)
+    return period_data
+
 
 # ===================== ROUTES =====================
 
@@ -352,7 +415,7 @@ async def create_product(input: ProductCreate):
 
 @api_router.put("/products/{product_id}", response_model=Product)
 async def update_product(product_id: str, input: ProductUpdate):
-    update_data = {k: v for k, v in input.model_dump().items() if v is not None}
+    update_data = {k: v for k, v in input.model_dump().items() if v is not None}  # noqa: E711
     if not update_data:
         raise HTTPException(status_code=400, detail="No data to update")
     
@@ -443,73 +506,30 @@ async def get_session(session_id: str):
 
 @api_router.post("/sessions", response_model=Session)
 async def create_session(input: SessionCreate):
-    # Get products for COGS calculation
-    products_map = {}
     products = await db.products.find({}, {"_id": 0}).to_list(100)
-    for p in products:
-        products_map[p['id']] = p
-    
-    # Process sales
-    session_sales = []
-    total_units = 0
-    calculated_sales = 0
-    food_cogs = 0
-    packaging = 0
-    
-    for sale in input.sales:
-        product_id = sale.get('product_id')
-        units = sale.get('units_sold', 0)
-        
-        if product_id in products_map:
-            product = products_map[product_id]
-            sales_value = units * product['price']
-            item_food_cogs = units * product['food_cost']
-            item_packaging = units * product['packaging_cost']
-            item_total_cogs = item_food_cogs + item_packaging
-            item_profit = sales_value - item_total_cogs
-            
-            session_sales.append(SessionSale(
-                product_id=product_id,
-                product_name=product['name'],
-                units_sold=units,
-                unit_price=product['price'],
-                sales_value=sales_value,
-                food_cogs=item_food_cogs,
-                packaging=item_packaging,
-                total_cogs=item_total_cogs,
-                gross_profit=item_profit
-            ))
-            
-            total_units += units
-            calculated_sales += sales_value
-            food_cogs += item_food_cogs
-            packaging += item_packaging
-            
-            # Update product stock
-            new_stock = max(0, product['current_stock'] - units)
-            await db.products.update_one(
-                {"id": product_id},
-                {"$set": {"current_stock": new_stock}}
-            )
-    
-    total_cogs = food_cogs + packaging
+    products_map = {p['id']: p for p in products}
+
+    # Process sales using helper
+    session_sales, totals = process_session_sales(input.sales, products_map)
+
+    # Update product stock for each sold item
+    for sale in session_sales:
+        product = products_map.get(sale.product_id)
+        if product:
+            new_stock = max(0, product['current_stock'] - sale.units_sold)
+            await db.products.update_one({"id": sale.product_id}, {"$set": {"current_stock": new_stock}})
+
+    # Derived calculations
+    total_cogs = totals["food_cogs"] + totals["packaging"]
+    calculated_sales = totals["sales"]
     gross_profit = calculated_sales - total_cogs
     cogs_percent = (total_cogs / calculated_sales * 100) if calculated_sales > 0 else 0
     total_collected = input.cash + input.eftpos
     variance = calculated_sales - total_collected
-    
-    # Determine status
-    if total_collected == 0 and calculated_sales > 0:
-        status = "Missing Payment"
-    elif variance > 0.5:
-        status = "Under-collected"
-    elif variance < -0.5:
-        status = "Over-collected"
-    else:
-        status = "OK"
-    
+    status = determine_cash_status(calculated_sales, total_collected)
+
     session_id = await get_next_session_id()
-    
+
     session = Session(
         session_id=session_id,
         date=input.date,
@@ -519,12 +539,12 @@ async def create_session(input: SessionCreate):
         eftpos=input.eftpos,
         total_collected=total_collected,
         sales=[s.model_dump() for s in session_sales],
-        total_units=total_units,
+        total_units=totals["units"],
         calculated_sales=round(calculated_sales, 2),
         variance=round(variance, 2),
         status=status,
-        food_cogs=round(food_cogs, 2),
-        packaging=round(packaging, 2),
+        food_cogs=round(totals["food_cogs"], 2),
+        packaging=round(totals["packaging"], 2),
         total_cogs=round(total_cogs, 2),
         gross_profit=round(gross_profit, 2),
         cogs_percent=round(cogs_percent, 2),
@@ -536,11 +556,11 @@ async def create_session(input: SessionCreate):
         created_by_name=input.created_by_name,
         created_by_role=input.created_by_role
     )
-    
+
     doc = session.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
     await db.sessions.insert_one(doc)
-    
+
     return session
 
 @api_router.put("/sessions/{session_id}")
@@ -558,14 +578,7 @@ async def update_session(session_id: str, input: Dict[str, Any]):
             calculated_sales = existing.get('calculated_sales', 0)
             variance = calculated_sales - total_collected
             
-            if total_collected == 0 and calculated_sales > 0:
-                status = "Missing Payment"
-            elif variance > 0.5:
-                status = "Under-collected"
-            elif variance < -0.5:
-                status = "Over-collected"
-            else:
-                status = "OK"
+            status = determine_cash_status(calculated_sales, total_collected)
             
             update_data['total_collected'] = total_collected
             update_data['variance'] = round(variance, 2)
@@ -985,7 +998,8 @@ async def update_product_ingredients(product_id: str, input: ProductIngredientsU
 @api_router.get("/export/sessions")
 async def export_sessions_csv():
     from fastapi.responses import StreamingResponse
-    import io, csv
+    import io
+    import csv
     sessions = await db.sessions.find({}, {"_id": 0}).sort("date", -1).to_list(1000)
     output = io.StringIO()
     writer = csv.writer(output)
@@ -1008,7 +1022,8 @@ async def export_sessions_csv():
 @api_router.get("/export/products")
 async def export_products_csv():
     from fastapi.responses import StreamingResponse
-    import io, csv
+    import io
+    import csv
     products = await db.products.find({}, {"_id": 0}).to_list(100)
     output = io.StringIO()
     writer = csv.writer(output)
@@ -1032,8 +1047,6 @@ async def export_products_csv():
 @api_router.get("/dashboard/market-comparison")
 async def get_market_comparison():
     sessions = await db.sessions.find({}, {"_id": 0}).to_list(1000)
-    products = await db.products.find({}, {"_id": 0}).to_list(100)
-    products_map = {p['id']: p for p in products}
 
     market_data = {}
     for s in sessions:
@@ -1092,7 +1105,7 @@ async def get_weekly_control():
             d = dt_date(int(parts[0]), int(parts[1]), int(parts[2]))
             iso = d.isocalendar()
             week_key = f"{iso[0]}-W{iso[1]:02d}"
-        except:
+        except (ValueError, TypeError, IndexError):
             continue
 
         if week_key not in week_data:
@@ -1219,7 +1232,7 @@ async def get_scale_planner(
             parts = s.get('date', '').split('-')
             d = dt_date(int(parts[0]), int(parts[1]), int(parts[2]))
             week_set.add(d.isocalendar()[:2])
-        except:
+        except (ValueError, TypeError, IndexError):
             pass
     weeks_active = max(len(week_set), 1)
     current_weekly = total_sales / weeks_active
@@ -1327,7 +1340,8 @@ async def generate_prep_checklist(market_id: Optional[str] = None, target_revenu
 @api_router.get("/export/prep-checklist")
 async def export_prep_checklist_csv(market_id: Optional[str] = None, target_revenue: float = 1000):
     from fastapi.responses import StreamingResponse
-    import io, csv
+    import io
+    import csv
     data = await generate_prep_checklist(market_id, target_revenue)
     output = io.StringIO()
     writer = csv.writer(output)
@@ -1369,10 +1383,6 @@ async def get_alerts():
 @api_router.get("/dashboard/staff-performance")
 async def get_staff_performance():
     sessions = await db.sessions.find({}, {"_id": 0}).to_list(1000)
-    users = await db.users.find({}, {"_id": 0, "password_hash": 0}).to_list(100)
-
-    # Build user lookup
-    user_map = {u['id']: u for u in users}
 
     # Aggregate by user
     staff_stats = {}
@@ -1560,66 +1570,39 @@ async def get_historical_comparison():
     sessions = await db.sessions.find({}, {"_id": 0}).to_list(1000)
     from datetime import date as dt_date
 
-    # Group by week
-    week_data = {}
-    for s in sessions:
+    def week_key(s):
         try:
             parts = s.get('date', '').split('-')
             d = dt_date(int(parts[0]), int(parts[1]), int(parts[2]))
             iso = d.isocalendar()
-            wk = f"{iso[0]}-W{iso[1]:02d}"
-        except:
-            continue
-        if wk not in week_data:
-            week_data[wk] = {'sales': 0, 'profit': 0, 'units': 0, 'sessions': 0, 'cogs': 0}
-        week_data[wk]['sales'] += s.get('calculated_sales', 0)
-        week_data[wk]['profit'] += s.get('gross_profit', 0)
-        week_data[wk]['units'] += s.get('total_units', 0)
-        week_data[wk]['sessions'] += 1
-        week_data[wk]['cogs'] += s.get('total_cogs', 0)
+            return f"{iso[0]}-W{iso[1]:02d}"
+        except (ValueError, IndexError):
+            return None
 
-    # Group by month
-    month_data = {}
-    for s in sessions:
-        m = s.get('date', '')[:7]
-        if not m:
-            continue
-        if m not in month_data:
-            month_data[m] = {'sales': 0, 'profit': 0, 'units': 0, 'sessions': 0, 'cogs': 0}
-        month_data[m]['sales'] += s.get('calculated_sales', 0)
-        month_data[m]['profit'] += s.get('gross_profit', 0)
-        month_data[m]['units'] += s.get('total_units', 0)
-        month_data[m]['sessions'] += 1
-        month_data[m]['cogs'] += s.get('total_cogs', 0)
+    def month_key(s):
+        return s.get('date', '')[:7] or None
 
-    # Calc WoW and MoM growth
-    sorted_weeks = sorted(week_data.keys())
-    wow = []
-    for i, wk in enumerate(sorted_weeks):
-        d = week_data[wk]
-        prev = week_data[sorted_weeks[i-1]] if i > 0 else None
-        growth = ((d['sales'] - prev['sales']) / prev['sales'] * 100) if prev and prev['sales'] > 0 else 0
-        wow.append({
-            'period': wk, 'sales': round(d['sales'], 2), 'profit': round(d['profit'], 2),
-            'units': d['units'], 'sessions': d['sessions'],
-            'cogs': round(d['cogs'], 2),
-            'growth_pct': round(growth, 1)
-        })
+    def calc_growth_series(period_data):
+        sorted_keys = sorted(period_data.keys())
+        result = []
+        for i, key in enumerate(sorted_keys):
+            d = period_data[key]
+            prev = period_data[sorted_keys[i - 1]] if i > 0 else None
+            growth = ((d['sales'] - prev['sales']) / prev['sales'] * 100) if prev and prev['sales'] > 0 else 0
+            result.append({
+                'period': key, 'sales': round(d['sales'], 2), 'profit': round(d['profit'], 2),
+                'units': d['units'], 'sessions': d['sessions'],
+                'cogs': round(d['cogs'], 2), 'growth_pct': round(growth, 1)
+            })
+        return result
 
-    sorted_months = sorted(month_data.keys())
-    mom = []
-    for i, m in enumerate(sorted_months):
-        d = month_data[m]
-        prev = month_data[sorted_months[i-1]] if i > 0 else None
-        growth = ((d['sales'] - prev['sales']) / prev['sales'] * 100) if prev and prev['sales'] > 0 else 0
-        mom.append({
-            'period': m, 'sales': round(d['sales'], 2), 'profit': round(d['profit'], 2),
-            'units': d['units'], 'sessions': d['sessions'],
-            'cogs': round(d['cogs'], 2),
-            'growth_pct': round(growth, 1)
-        })
+    week_data = aggregate_by_period(sessions, week_key)
+    month_data = aggregate_by_period(sessions, month_key)
 
-    return {"week_over_week": wow, "month_over_month": mom}
+    return {
+        "week_over_week": calc_growth_series(week_data),
+        "month_over_month": calc_growth_series(month_data)
+    }
 
 
 

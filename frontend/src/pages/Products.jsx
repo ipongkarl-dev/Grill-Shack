@@ -256,7 +256,6 @@ const Products = () => {
       const response = await axios.get(`${API}/products`);
       setProducts(response.data);
     } catch (error) {
-      console.error("Error fetching products:", error);
       toast.error("Failed to load products");
     } finally {
       setLoading(false);
@@ -280,7 +279,6 @@ const Products = () => {
       setEditingProduct(null);
       fetchProducts();
     } catch (error) {
-      console.error("Error saving product:", error);
       toast.error("Failed to save product");
     }
   };
@@ -293,7 +291,6 @@ const Products = () => {
       toast.success("Product deleted");
       fetchProducts();
     } catch (error) {
-      console.error("Error deleting product:", error);
       toast.error("Failed to delete product");
     }
   };

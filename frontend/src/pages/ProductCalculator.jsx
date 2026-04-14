@@ -25,7 +25,7 @@ const ProductCalculator = () => {
     try {
       const res = await axios.get(`${API}/products`);
       setProducts(res.data);
-    } catch (e) { console.error(e); }
+    } catch (_e) { /* logged server-side */ }
     finally { setLoading(false); }
   };
 
@@ -151,7 +151,7 @@ const ProductCalculator = () => {
                     <div className="col-span-2"></div>
                   </div>
                   {ingredients.map((ing, idx) => (
-                    <div key={idx} className="grid grid-cols-12 gap-2 items-center bg-zinc-800/50 rounded-lg p-2">
+                    <div key={ing.name || `ing-${idx}`} className="grid grid-cols-12 gap-2 items-center bg-zinc-800/50 rounded-lg p-2">
                       <div className="col-span-3">
                         <Input
                           value={ing.name}

@@ -38,7 +38,7 @@ const QuickMode = ({ user }) => {
         const init = {};
         pRes.data.forEach(p => { init[p.id] = 0; });
         setCounts(init);
-      } catch (e) { console.error(e); }
+      } catch (_e) { /* logged server-side */ }
       finally { setLoading(false); }
     };
     fetch();
