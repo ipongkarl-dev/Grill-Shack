@@ -741,6 +741,7 @@ async def get_dashboard_kpis():
     
     # Sales by market
     market_sales = {}
+    total_cash_expenses = 0
     for s in sessions:
         market = s.get('market_name', 'Unknown')
         if market not in market_sales:
@@ -748,11 +749,21 @@ async def get_dashboard_kpis():
         market_sales[market]['sales'] += s.get('calculated_sales', 0)
         market_sales[market]['units'] += s.get('total_units', 0)
         market_sales[market]['sessions'] += 1
-    
+        total_cash_expenses += s.get('cash_expenses', 0)
+
+    # Net profit = gross profit - cash expenses (market fees, overheads)
+    settings_doc = await db.allocation_settings.find_one({"id": "default"}, {"_id": 0})
+    gst_rate = (settings_doc.get('gst_rate', 15) if settings_doc else 15) / 100
+    gst_amount = total_sales * gst_rate / (1 + gst_rate)
+    net_profit = total_profit - total_cash_expenses - gst_amount
+
     return {
         "total_sales": round(total_sales, 2),
         "total_cogs": round(total_cogs, 2),
         "total_profit": round(total_profit, 2),
+        "net_profit": round(net_profit, 2),
+        "gst_amount": round(gst_amount, 2),
+        "total_cash_expenses": round(total_cash_expenses, 2),
         "total_units": total_units,
         "session_count": session_count,
         "avg_cogs_percent": round(avg_cogs_percent, 2),
@@ -1829,8 +1840,30 @@ async def get_historical_comparison():
             d = period_data[key]
             prev = period_data[sorted_keys[i - 1]] if i > 0 else None
             growth = ((d['sales'] - prev['sales']) / prev['sales'] * 100) if prev and prev['sales'] > 0 else 0
+            # Add human-readable label
+            label = key
+            if key.startswith("20") and "-W" in key:
+                # Week format: 2026-W08 → "2026 Week 8 (Feb)"
+                parts = key.split("-W")
+                yr, wk = parts[0], int(parts[1])
+                try:
+                    from datetime import date as dt_date2
+                    d_ref = dt_date2.fromisocalendar(int(yr), wk, 1)
+                    month_name = d_ref.strftime('%b')
+                    label = f"{yr} Week {wk} ({month_name})"
+                except (ValueError, TypeError):
+                    label = f"{yr} Week {wk}"
+            elif key.startswith("20") and len(key) == 7:
+                # Month format: 2026-03 → "March 2026"
+                try:
+                    from datetime import date as dt_date2
+                    d_ref = dt_date2(int(key[:4]), int(key[5:7]), 1)
+                    label = d_ref.strftime('%B %Y')
+                except (ValueError, TypeError):
+                    pass
             result.append({
-                'period': key, 'sales': round(d['sales'], 2), 'profit': round(d['profit'], 2),
+                'period': key, 'label': label,
+                'sales': round(d['sales'], 2), 'profit': round(d['profit'], 2),
                 'units': d['units'], 'sessions': d['sessions'],
                 'cogs': round(d['cogs'], 2), 'growth_pct': round(growth, 1)
             })
@@ -1844,6 +1877,253 @@ async def get_historical_comparison():
         "month_over_month": calc_growth_series(month_data)
     }
 
+
+
+# -------- MARKET PRESET COPY --------
+
+@api_router.post("/markets/{market_id}/copy-preset")
+async def copy_market_preset(market_id: str, request: Request, source_market_id: str = Query(...)):
+    await require_owner(request)
+    source = await db.markets.find_one({"id": source_market_id}, {"_id": 0})
+    if not source:
+        raise HTTPException(status_code=404, detail="Source market not found")
+    target = await db.markets.find_one({"id": market_id}, {"_id": 0})
+    if not target:
+        raise HTTPException(status_code=404, detail="Target market not found")
+    await db.markets.update_one({"id": market_id}, {"$set": {"preset_mix": source.get("preset_mix", {})}})
+    return {"message": f"Preset copied from {source['name']} to {target['name']}"}
+
+# -------- EXCEL EXPORT --------
+
+from fastapi.responses import StreamingResponse
+import io
+
+def _make_excel_workbook(title, headers, rows):
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+    wb = Workbook()
+    ws = wb.active
+    ws.title = title
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="F97316", end_color="F97316", fill_type="solid")
+    for col_idx, h in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_idx, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+    for row_idx, row in enumerate(rows, 2):
+        for col_idx, val in enumerate(row, 1):
+            ws.cell(row=row_idx, column=col_idx, value=val)
+    for col in ws.columns:
+        max_len = max(len(str(c.value or '')) for c in col)
+        ws.column_dimensions[col[0].column_letter].width = min(max_len + 4, 40)
+    return wb
+
+@api_router.get("/export/sessions-excel")
+async def export_sessions_excel():
+    sessions = await db.sessions.find({}, {"_id": 0}).sort("date", -1).to_list(5000)
+    headers = ["Date", "Market", "Units", "Calculated Sales", "COGS", "Gross Profit", "Cash", "EFTPOS", "Total Collected", "Variance", "Status", "Cash Expenses", "Notes"]
+    rows = []
+    for s in sessions:
+        rows.append([s.get('date'), s.get('market_name'), s.get('total_units', 0), s.get('calculated_sales', 0), s.get('total_cogs', 0), s.get('gross_profit', 0), s.get('cash', 0), s.get('eftpos', 0), s.get('total_collected', 0), s.get('variance', 0), s.get('status', ''), s.get('cash_expenses', 0), s.get('notes', '')])
+    wb = _make_excel_workbook("Sessions", headers, rows)
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": "attachment; filename=GrillShack_Sessions.xlsx"})
+
+@api_router.get("/export/products-excel")
+async def export_products_excel():
+    products = await db.products.find({}, {"_id": 0}).to_list(100)
+    headers = ["Name", "Code", "Price", "Food Cost", "Packaging Cost", "Total Cost", "COGS %", "Profit/Unit", "Current Stock", "Reorder Point"]
+    rows = [[p.get('name'), p.get('code'), p.get('price', 0), p.get('food_cost', 0), p.get('packaging_cost', 0), p.get('total_cost', 0), p.get('cogs_percent', 0), p.get('profit_per_order', 0), p.get('current_stock', 0), p.get('reorder_point', 0)] for p in products]
+    wb = _make_excel_workbook("Products", headers, rows)
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": "attachment; filename=GrillShack_Products.xlsx"})
+
+@api_router.get("/export/inventory-excel")
+async def export_inventory_excel():
+    entries = await db.inventory.find({}, {"_id": 0}).sort("date", -1).to_list(5000)
+    headers = ["Date", "Ingredient", "Packs", "Units/Pack", "Unit", "Pack Cost", "Cost/Unit", "Total Qty", "Total Cost", "Supplier", "Notes"]
+    rows = [[e.get('date'), e.get('ingredient_name'), e.get('packs_in', 0), e.get('units_per_pack', 0), e.get('unit', ''), e.get('pack_cost', 0), e.get('cost_per_unit', 0), e.get('total_qty_added', 0), e.get('total_cost', 0), e.get('supplier', ''), e.get('notes', '')] for e in entries]
+    wb = _make_excel_workbook("Inventory", headers, rows)
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": "attachment; filename=GrillShack_Inventory.xlsx"})
+
+@api_router.get("/export/cashflow-excel")
+async def export_cashflow_excel():
+    targets = await db.cashflow_targets.find({}, {"_id": 0}).to_list(500)
+    headers = ["Month", "Sales Target", "Actual Sales", "Growth Saved", "Emergency Saved", "Notes"]
+    rows = [[t.get('month'), t.get('sales_target', 0), t.get('actual_sales', 0), t.get('growth_saved', 0), t.get('emergency_saved', 0), t.get('notes', '')] for t in targets]
+    wb = _make_excel_workbook("Cashflow", headers, rows)
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": "attachment; filename=GrillShack_Cashflow.xlsx"})
+
+@api_router.get("/export/sales-by-month-market")
+async def export_sales_by_month_market():
+    """Sales by month with all markets breakdown — Excel download."""
+    sessions = await db.sessions.find({}, {"_id": 0}).to_list(5000)
+    markets_set = sorted(set(s.get('market_name', 'Unknown') for s in sessions))
+    data = {}
+    for s in sessions:
+        month = s.get('date', '')[:7]
+        market = s.get('market_name', 'Unknown')
+        if month not in data:
+            data[month] = {m: {'sales': 0, 'units': 0, 'profit': 0} for m in markets_set}
+        data[month][market]['sales'] += s.get('calculated_sales', 0)
+        data[month][market]['units'] += s.get('total_units', 0)
+        data[month][market]['profit'] += s.get('gross_profit', 0)
+    headers = ["Month"] + [f"{m} Sales" for m in markets_set] + [f"{m} Units" for m in markets_set] + ["Total Sales", "Total Units", "Total Profit"]
+    rows = []
+    for month in sorted(data.keys()):
+        row = [month]
+        total_s, total_u, total_p = 0, 0, 0
+        for m in markets_set:
+            row.append(round(data[month][m]['sales'], 2))
+            total_s += data[month][m]['sales']
+        for m in markets_set:
+            row.append(data[month][m]['units'])
+            total_u += data[month][m]['units']
+        total_p = sum(data[month][m]['profit'] for m in markets_set)
+        row.extend([round(total_s, 2), total_u, round(total_p, 2)])
+        rows.append(row)
+    wb = _make_excel_workbook("Sales by Month & Market", headers, rows)
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": "attachment; filename=GrillShack_Sales_By_Month_Market.xlsx"})
+
+# -------- DATA BACKUP / RESTORE --------
+
+import json as json_module
+
+@api_router.get("/backup/export")
+async def export_backup(request: Request):
+    """Export all data as a JSON backup (safe mode)."""
+    await require_owner(request)
+    collections = ['products', 'markets', 'sessions', 'inventory', 'cashflow_targets',
+                    'allocation_settings', 'suppliers', 'purchase_orders', 'users',
+                    'product_ingredients', 'data_snapshots']
+    backup = {"backup_date": datetime.now(timezone.utc).isoformat(), "version": "2.0"}
+    for coll_name in collections:
+        coll = db[coll_name]
+        docs = await coll.find({}, {"_id": 0}).to_list(10000)
+        backup[coll_name] = docs
+    content = json_module.dumps(backup, indent=2, default=str)
+    return StreamingResponse(
+        io.BytesIO(content.encode()),
+        media_type="application/json",
+        headers={"Content-Disposition": f"attachment; filename=GrillShack_Backup_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.json"}
+    )
+
+@api_router.post("/backup/restore")
+async def restore_backup(request: Request):
+    """Restore data from a JSON backup. Owner-only."""
+    await require_owner(request)
+    body = await request.json()
+    if "version" not in body or "products" not in body:
+        raise HTTPException(status_code=400, detail="Invalid backup file format")
+    collections = ['products', 'markets', 'sessions', 'inventory', 'cashflow_targets',
+                    'allocation_settings', 'suppliers', 'purchase_orders',
+                    'product_ingredients', 'data_snapshots']
+    restored = {}
+    for coll_name in collections:
+        if coll_name in body and body[coll_name]:
+            coll = db[coll_name]
+            await coll.delete_many({})
+            await coll.insert_many(body[coll_name])
+            restored[coll_name] = len(body[coll_name])
+    return {"message": "Backup restored successfully", "restored": restored}
+
+# -------- DATA SNAPSHOTS (versioning for stock planner lookback) --------
+
+@api_router.post("/snapshots")
+async def create_snapshot(request: Request):
+    """Save a snapshot of current data for Stock Planner lookback. Owner-only."""
+    await require_owner(request)
+    body = await request.json()
+    products = await db.products.find({}, {"_id": 0}).to_list(100)
+    sessions = await db.sessions.find({}, {"_id": 0}).to_list(5000)
+    snapshot = {
+        "id": str(uuid.uuid4()),
+        "label": body.get("label", f"Snapshot {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')}"),
+        "notes": body.get("notes", ""),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "products": products,
+        "session_summary": {
+            "count": len(sessions),
+            "total_sales": round(sum(s.get('calculated_sales', 0) for s in sessions), 2),
+            "total_profit": round(sum(s.get('gross_profit', 0) for s in sessions), 2),
+            "total_cogs": round(sum(s.get('total_cogs', 0) for s in sessions), 2),
+        }
+    }
+    await db.data_snapshots.insert_one(snapshot)
+    snapshot.pop('_id', None)
+    return snapshot
+
+@api_router.get("/snapshots")
+async def list_snapshots(request: Request):
+    await require_owner(request)
+    snapshots = await db.data_snapshots.find({}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return snapshots
+
+@api_router.get("/snapshots/{snapshot_id}")
+async def get_snapshot(snapshot_id: str, request: Request):
+    await require_owner(request)
+    doc = await db.data_snapshots.find_one({"id": snapshot_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Snapshot not found")
+    return doc
+
+@api_router.put("/snapshots/{snapshot_id}")
+async def update_snapshot(snapshot_id: str, request: Request):
+    """Edit snapshot label/notes (for rectification). Owner-only."""
+    await require_owner(request)
+    body = await request.json()
+    update = {}
+    if "label" in body:
+        update["label"] = body["label"]
+    if "notes" in body:
+        update["notes"] = body["notes"]
+    if "products" in body:
+        update["products"] = body["products"]
+    if not update:
+        raise HTTPException(status_code=400, detail="Nothing to update")
+    result = await db.data_snapshots.update_one({"id": snapshot_id}, {"$set": update})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Snapshot not found")
+    return {"message": "Snapshot updated"}
+
+@api_router.delete("/snapshots/{snapshot_id}")
+async def delete_snapshot(snapshot_id: str, request: Request):
+    await require_owner(request)
+    result = await db.data_snapshots.delete_one({"id": snapshot_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Snapshot not found")
+    return {"message": "Snapshot deleted"}
+
+# -------- PASSWORD CHANGE --------
+
+class PasswordChangeInput(BaseModel):
+    current_password: str
+    new_password: str
+
+@api_router.post("/auth/change-password")
+async def change_password(input: PasswordChangeInput, request: Request):
+    user = await get_current_user(request)
+    full_user = await db.users.find_one({"id": user["id"]})
+    if not full_user or not verify_password(input.current_password, full_user.get("password_hash", "")):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    if len(input.new_password) < 6:
+        raise HTTPException(status_code=400, detail="New password must be at least 6 characters")
+    new_hash = hash_password(input.new_password)
+    await db.users.update_one({"id": user["id"]}, {"$set": {"password_hash": new_hash}})
+    return {"message": "Password changed successfully"}
 
 
 # -------- SEED DATA --------

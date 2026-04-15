@@ -13,7 +13,8 @@ import {
   ShoppingCart,
   AlertTriangle,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  Wallet
 } from "lucide-react";
 import {
   BarChart,
@@ -131,7 +132,7 @@ const Dashboard = () => {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <KPICard
           title="Total Sales"
           value={formatCurrency(kpis?.total_sales || 0)}
@@ -143,6 +144,12 @@ const Dashboard = () => {
           value={formatCurrency(kpis?.total_profit || 0)}
           icon={TrendingUp}
           color="emerald"
+        />
+        <KPICard
+          title="Net Profit"
+          value={formatCurrency(kpis?.net_profit || 0)}
+          icon={Wallet}
+          color="cyan"
         />
         <KPICard
           title="Avg COGS %"

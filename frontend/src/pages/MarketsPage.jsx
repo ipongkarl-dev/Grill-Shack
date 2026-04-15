@@ -9,7 +9,7 @@ import { Label } from "../components/ui/label";
 import { Badge } from "../components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
-import { Plus, Pencil, Trash2, MapPin } from "lucide-react";
+import { Plus, Pencil, Trash2, MapPin, Copy } from "lucide-react";
 
 const MarketsPage = () => {
   const [markets, setMarkets] = useState([]);
@@ -17,6 +17,7 @@ const MarketsPage = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [name, setName] = useState("");
+  const [copySource, setCopySource] = useState(null);
 
   const fetchMarkets = useCallback(async () => {
     try {
@@ -55,6 +56,16 @@ const MarketsPage = () => {
     } catch (e) { toast.error("Failed to delete"); }
   };
 
+  const handleCopyPreset = async (targetId) => {
+    if (!copySource) { toast.error("Select a source market first"); return; }
+    try {
+      await axios.post(`${API}/markets/${targetId}/copy-preset?source_market_id=${copySource}`);
+      toast.success("Preset copied!");
+      setCopySource(null);
+      fetchMarkets();
+    } catch (_e) { toast.error("Failed to copy preset"); }
+  };
+
   if (loading) return <div className="h-96 bg-zinc-900 rounded-xl animate-pulse" />;
 
   return (
@@ -87,6 +98,32 @@ const MarketsPage = () => {
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* Copy Preset Control */}
+      {markets.some(m => m.preset_mix && Object.keys(m.preset_mix).length > 0) && (
+        <Card className="bg-zinc-900 border-zinc-800 border-orange-500/20">
+          <CardContent className="p-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Copy className="w-4 h-4 text-orange-500" />
+                <span className="text-sm text-zinc-300">Copy preset from:</span>
+              </div>
+              <select
+                value={copySource || ""}
+                onChange={e => setCopySource(e.target.value || null)}
+                className="bg-zinc-800 border border-zinc-700 rounded-md px-3 py-1.5 text-sm text-zinc-200"
+                data-testid="copy-source-select"
+              >
+                <option value="">Select source market</option>
+                {markets.filter(m => m.preset_mix && Object.keys(m.preset_mix).length > 0).map(m => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+              {copySource && <span className="text-xs text-zinc-500">Click "Apply" on a target market below</span>}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="bg-zinc-900 border-zinc-800">
         <CardContent className="p-0">
@@ -124,6 +161,11 @@ const MarketsPage = () => {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
+                      {copySource && copySource !== m.id && (
+                        <Button size="sm" variant="ghost" onClick={() => handleCopyPreset(m.id)} className="text-orange-400 hover:text-orange-300 text-xs" data-testid={`apply-preset-${m.id}`}>
+                          Apply
+                        </Button>
+                      )}
                       <Button size="sm" variant="ghost" onClick={() => openEdit(m)} className="text-zinc-400 hover:text-zinc-200" data-testid={`edit-market-${m.id}`}>
                         <Pencil className="w-4 h-4" />
                       </Button>

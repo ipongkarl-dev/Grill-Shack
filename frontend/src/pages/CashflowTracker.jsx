@@ -11,7 +11,7 @@ import { Badge } from "../components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
-import { Plus, Target, TrendingUp, PiggyBank, Shield } from "lucide-react";
+import { Plus, Target, TrendingUp, PiggyBank, Shield, Download } from "lucide-react";
 
 const formatCurrency = (v) => new Intl.NumberFormat('en-NZ', { style: 'currency', currency: 'NZD' }).format(v);
 
@@ -94,12 +94,16 @@ const CashflowTracker = () => {
           <h1 className="text-3xl sm:text-4xl font-heading font-bold text-zinc-50">Cashflow Tracker</h1>
           <p className="text-zinc-400 mt-2">Monthly targets, actuals, and savings goals</p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-orange-500 hover:bg-orange-600" data-testid="add-target-btn">
-              <Plus className="w-4 h-4 mr-2" /> Add Month Target
-            </Button>
-          </DialogTrigger>
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" size="sm" className="border-zinc-700 hover:bg-zinc-800" onClick={() => window.open(`${API}/export/cashflow-excel`, '_blank')} data-testid="export-cashflow-btn">
+            <Download className="w-4 h-4 mr-1" /> Export Excel
+          </Button>
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-orange-500 hover:bg-orange-600" data-testid="add-target-btn">
+                <Plus className="w-4 h-4 mr-2" /> Add Month Target
+              </Button>
+            </DialogTrigger>
           <DialogContent className="bg-zinc-900 border-zinc-800 max-w-sm">
             <DialogHeader>
               <DialogTitle className="text-zinc-50 font-heading">Set Monthly Target</DialogTitle>
@@ -134,6 +138,7 @@ const CashflowTracker = () => {
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Summary KPIs */}

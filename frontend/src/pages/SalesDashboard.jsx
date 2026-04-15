@@ -93,12 +93,15 @@ const SalesDashboard = () => {
           <h1 className="text-3xl sm:text-4xl font-heading font-bold text-zinc-50">Sales Dashboard</h1>
           <p className="text-zinc-400 mt-2">Track sales performance across markets and products</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="border-zinc-700 hover:bg-zinc-800" onClick={() => window.open(`${API}/export/sessions`, '_blank')} data-testid="export-sessions-btn">
-            <Download className="w-4 h-4 mr-1" /> Export Sessions
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" size="sm" className="border-zinc-700 hover:bg-zinc-800" onClick={() => window.open(`${API}/export/sessions-excel`, '_blank')} data-testid="export-sessions-btn">
+            <Download className="w-4 h-4 mr-1" /> Sessions (Excel)
           </Button>
-          <Button variant="outline" size="sm" className="border-zinc-700 hover:bg-zinc-800" onClick={() => window.open(`${API}/export/products`, '_blank')} data-testid="export-products-btn">
-            <Download className="w-4 h-4 mr-1" /> Export Products
+          <Button variant="outline" size="sm" className="border-zinc-700 hover:bg-zinc-800" onClick={() => window.open(`${API}/export/products-excel`, '_blank')} data-testid="export-products-btn">
+            <Download className="w-4 h-4 mr-1" /> Products (Excel)
+          </Button>
+          <Button variant="outline" size="sm" className="border-orange-500/30 text-orange-400 hover:bg-orange-500/10" onClick={() => window.open(`${API}/export/sales-by-month-market`, '_blank')} data-testid="export-monthly-btn">
+            <Download className="w-4 h-4 mr-1" /> Monthly by Market
           </Button>
         </div>
       </div>

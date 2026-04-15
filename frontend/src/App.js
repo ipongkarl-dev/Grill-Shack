@@ -31,7 +31,10 @@ import {
   LogOut,
   User,
   UsersRound,
-  ShoppingCart
+  ShoppingCart,
+  Database,
+  Settings,
+  BookOpen
 } from "lucide-react";
 
 // Pages
@@ -59,6 +62,9 @@ import SupplierDirectory from "./pages/SupplierDirectory";
 import HistoricalComparison from "./pages/HistoricalComparison";
 import StaffPerformance from "./pages/StaffPerformance";
 import ReorderPage from "./pages/ReorderPage";
+import DataRepository from "./pages/DataRepository";
+import SettingsPage from "./pages/SettingsPage";
+import ManualPage from "./pages/ManualPage";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
@@ -95,6 +101,9 @@ const Sidebar = ({ isOpen, setIsOpen, user, onLogout }) => {
     { path: "/suppliers", icon: Truck, label: "Suppliers", role: OWNER_ONLY },
     { path: "/reorder", icon: ShoppingCart, label: "Auto-Reorder", role: OWNER_ONLY },
     { path: "/markets", icon: MapPin, label: "Markets", role: OWNER_ONLY },
+    { path: "/data", icon: Database, label: "Data Repository", role: OWNER_ONLY },
+    { path: "/settings", icon: Settings, label: "Settings" },
+    { path: "/manual", icon: BookOpen, label: "Manual" },
   ];
 
   const filteredNavItems = navItems.filter(item => !item.role || user?.role === item.role);
@@ -290,6 +299,9 @@ function App() {
           <Route path="/suppliers" element={<OwnerRoute user={user}><SupplierDirectory /></OwnerRoute>} />
           <Route path="/reorder" element={<OwnerRoute user={user}><ReorderPage /></OwnerRoute>} />
           <Route path="/markets" element={<OwnerRoute user={user}><MarketsPage /></OwnerRoute>} />
+          <Route path="/data" element={<OwnerRoute user={user}><DataRepository /></OwnerRoute>} />
+          <Route path="/settings" element={<SettingsPage user={user} />} />
+          <Route path="/manual" element={<ManualPage />} />
         </Routes>
       </Layout>
     </BrowserRouter>

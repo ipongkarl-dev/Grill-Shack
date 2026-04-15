@@ -100,9 +100,9 @@ const HistoricalComparison = () => {
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={wow}>
                       <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
-                      <XAxis dataKey="period" stroke={CHART_AXIS_STROKE} tick={CHART_AXIS_TICK_SM} />
+                      <XAxis dataKey="label" stroke={CHART_AXIS_STROKE} tick={CHART_AXIS_TICK_SM} />
                       <YAxis stroke={CHART_AXIS_STROKE} tick={CHART_AXIS_TICK} tickFormatter={v => `$${v / 1000}k`} />
-                      <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={v => fmt(v)} />
+                      <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={v => fmt(v)} labelFormatter={l => l} />
                       <Legend />
                       <Line type="monotone" dataKey="sales" name="Sales" stroke="#f97316" strokeWidth={2} dot={CHART_DOT_ORANGE} />
                       <Line type="monotone" dataKey="profit" name="Profit" stroke="#10b981" strokeWidth={2} dot={CHART_DOT_GREEN} />
@@ -119,7 +119,7 @@ const HistoricalComparison = () => {
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={wow}>
                       <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
-                      <XAxis dataKey="period" stroke={CHART_AXIS_STROKE} tick={CHART_AXIS_TICK_SM} />
+                      <XAxis dataKey="label" stroke={CHART_AXIS_STROKE} tick={CHART_AXIS_TICK_SM} />
                       <YAxis stroke={CHART_AXIS_STROKE} tick={CHART_AXIS_TICK} tickFormatter={v => `${v}%`} />
                       <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={v => `${v}%`} />
                       <ReferenceLine y={0} stroke="#52525b" />
@@ -142,6 +142,7 @@ const HistoricalComparison = () => {
                 <TableHeader>
                   <TableRow className="border-zinc-800 hover:bg-transparent">
                     <TableHead className="text-zinc-400">Week</TableHead>
+                    <TableHead className="text-zinc-400">Month</TableHead>
                     <TableHead className="text-zinc-400 text-right">Sales</TableHead>
                     <TableHead className="text-zinc-400 text-right">Profit</TableHead>
                     <TableHead className="text-zinc-400 text-right">COGS</TableHead>
@@ -153,7 +154,8 @@ const HistoricalComparison = () => {
                 <TableBody>
                   {wow.map(w => (
                     <TableRow key={w.period} className="border-zinc-800 hover:bg-zinc-800/50">
-                      <TableCell className="font-mono text-zinc-200">{w.period}</TableCell>
+                      <TableCell className="font-mono text-zinc-200">{w.label || w.period}</TableCell>
+                      <TableCell className="text-zinc-400 text-xs">{w.label?.match(/\(([^)]+)\)/)?.[1] || ''}</TableCell>
                       <TableCell className="text-right font-mono text-orange-500">{fmt(w.sales)}</TableCell>
                       <TableCell className="text-right font-mono text-emerald-500">{fmt(w.profit)}</TableCell>
                       <TableCell className="text-right font-mono text-red-400">{fmt(w.cogs)}</TableCell>
@@ -181,7 +183,7 @@ const HistoricalComparison = () => {
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={mom}>
                       <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
-                      <XAxis dataKey="period" stroke={CHART_AXIS_STROKE} tick={CHART_AXIS_TICK} />
+                      <XAxis dataKey="label" stroke={CHART_AXIS_STROKE} tick={CHART_AXIS_TICK} />
                       <YAxis stroke={CHART_AXIS_STROKE} tick={CHART_AXIS_TICK} tickFormatter={v => `$${v / 1000}k`} />
                       <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={v => fmt(v)} />
                       <Legend />
@@ -200,7 +202,7 @@ const HistoricalComparison = () => {
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={mom}>
                       <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
-                      <XAxis dataKey="period" stroke={CHART_AXIS_STROKE} tick={CHART_AXIS_TICK} />
+                      <XAxis dataKey="label" stroke={CHART_AXIS_STROKE} tick={CHART_AXIS_TICK} />
                       <YAxis stroke={CHART_AXIS_STROKE} tick={CHART_AXIS_TICK} tickFormatter={v => `${v}%`} />
                       <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={v => `${v}%`} />
                       <ReferenceLine y={0} stroke="#52525b" />
@@ -233,7 +235,7 @@ const HistoricalComparison = () => {
                 <TableBody>
                   {mom.map(m => (
                     <TableRow key={m.period} className="border-zinc-800 hover:bg-zinc-800/50">
-                      <TableCell className="font-mono text-zinc-200">{m.period}</TableCell>
+                      <TableCell className="font-mono text-zinc-200">{m.label || m.period}</TableCell>
                       <TableCell className="text-right font-mono text-orange-500">{fmt(m.sales)}</TableCell>
                       <TableCell className="text-right font-mono text-emerald-500">{fmt(m.profit)}</TableCell>
                       <TableCell className="text-right font-mono text-red-400">{fmt(m.cogs)}</TableCell>

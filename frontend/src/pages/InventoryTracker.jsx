@@ -13,7 +13,7 @@ import { Badge } from "../components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog";
 import { format } from "date-fns";
-import { CalendarIcon, Plus, Package, Truck, FileText, ArrowRight, Pencil, Trash2 } from "lucide-react";
+import { CalendarIcon, Plus, Package, Truck, FileText, ArrowRight, Pencil, Trash2, Download } from "lucide-react";
 
 const fmt = (v) => new Intl.NumberFormat('en-NZ', { style: 'currency', currency: 'NZD', minimumFractionDigits: 2 }).format(v);
 
@@ -126,7 +126,11 @@ const InventoryTracker = () => {
           <h1 className="text-3xl sm:text-4xl font-heading font-bold text-zinc-50">Raw Material Inventory</h1>
           <p className="text-zinc-400 mt-2">Track raw material purchases — costs auto-flow to Product Calculator and COGS</p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) closeDialog(); else openNew(); }}>
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" size="sm" className="border-zinc-700 hover:bg-zinc-800" onClick={() => window.open(`${API}/export/inventory-excel`, '_blank')} data-testid="export-inventory-btn">
+            <Download className="w-4 h-4 mr-1" /> Export Excel
+          </Button>
+          <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) closeDialog(); else openNew(); }}>
           <DialogTrigger asChild>
             <Button onClick={openNew} className="bg-orange-500 hover:bg-orange-600" data-testid="add-inventory-btn">
               <Plus className="w-4 h-4 mr-2" /> Record Purchase
@@ -232,6 +236,7 @@ const InventoryTracker = () => {
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* How COGS Flows */}
