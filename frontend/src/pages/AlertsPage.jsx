@@ -19,6 +19,7 @@ const AlertsPage = () => {
       setAlerts(res.data);
     } catch (_e) { toast.error('Failed to load data'); }
     finally { setLoading(false); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- only module-level imports (API, axios, toast) and stable state setters used
   }, []);
 
   useEffect(() => { fetchAlerts(); }, [fetchAlerts]);

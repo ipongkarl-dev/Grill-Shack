@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import axios from "axios";
 import { API } from "../App";
 import { toast } from "sonner";
@@ -25,6 +25,7 @@ const MarketsPage = () => {
       setMarkets(res.data);
     } catch (_e) { toast.error('Failed to load data'); }
     finally { setLoading(false); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- only module-level imports (API, axios, toast) and stable state setters used
   }, []);
 
   useEffect(() => { fetchMarkets(); }, [fetchMarkets]);
@@ -68,6 +69,8 @@ const MarketsPage = () => {
 
   if (loading) return <div className="h-96 bg-zinc-900 rounded-xl animate-pulse" />;
 
+  const marketsWithPresets = markets.filter(m => m.preset_mix && Object.keys(m.preset_mix).length > 0);
+
   return (
     <div className="space-y-6" data-testid="markets-page">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -100,7 +103,7 @@ const MarketsPage = () => {
       </div>
 
       {/* Copy Preset Control */}
-      {markets.some(m => m.preset_mix && Object.keys(m.preset_mix).length > 0) && (
+      {marketsWithPresets.length > 0 && (
         <Card className="bg-zinc-900 border-zinc-800 border-orange-500/20">
           <CardContent className="p-4">
             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
@@ -115,7 +118,7 @@ const MarketsPage = () => {
                 data-testid="copy-source-select"
               >
                 <option value="">Select source market</option>
-                {markets.filter(m => m.preset_mix && Object.keys(m.preset_mix).length > 0).map(m => (
+                {marketsWithPresets.map(m => (
                   <option key={m.id} value={m.id}>{m.name}</option>
                 ))}
               </select>

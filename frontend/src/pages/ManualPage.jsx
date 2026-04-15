@@ -12,7 +12,7 @@ const Section = ({ icon: Icon, title, steps, color = "orange" }) => (
     <CardContent>
       <ol className="space-y-2">
         {steps.map((step, i) => (
-          <li key={i} className="flex items-start gap-2 text-sm">
+          <li key={`step-${step.slice(0, 20).replace(/\s/g, '-')}`} className="flex items-start gap-2 text-sm">
             <Badge className="bg-zinc-800 text-zinc-400 text-xs min-w-[20px] justify-center mt-0.5">{i + 1}</Badge>
             <span className="text-zinc-300">{step}</span>
           </li>

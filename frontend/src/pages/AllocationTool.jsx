@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
-import { Slider } from "../components/ui/slider";
+import { AllocationSettingsPanel } from "../components/AllocationSettingsPanel";
 import { 
   Calculator, 
   PiggyBank, 
@@ -59,6 +59,7 @@ const AllocationTool = () => {
       } finally {
         setLoading(false);
       }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- only module-level imports (API, axios, toast) and stable state setters used
   }, []);
 
   useEffect(() => { fetchSettings(); }, [fetchSettings]);
@@ -143,133 +144,13 @@ const AllocationTool = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Settings Card */}
-        <Card className="bg-zinc-900 border-zinc-800">
-          <CardHeader>
-            <CardTitle className="text-lg font-heading text-zinc-50 flex items-center">
-              <Percent className="w-5 h-5 mr-2 text-orange-500" />
-              Allocation Settings
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* GST Rate */}
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <Label className="text-zinc-400">GST Rate</Label>
-                <span className="text-zinc-300 font-mono">{settings.gst_rate}%</span>
-              </div>
-              <Slider
-                value={[settings.gst_rate]}
-                onValueChange={([v]) => handlePercentChange('gst_rate', v)}
-                max={20}
-                min={0}
-                step={0.5}
-                className="w-full"
-              />
-            </div>
-
-            <div className="border-t border-zinc-800 pt-4 space-y-4">
-              <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">
-                Profit Distribution (Must total 100%)
-              </p>
-
-              {/* Owner Pay */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <Label className="text-zinc-400 flex items-center">
-                    <Wallet className="w-4 h-4 mr-2 text-orange-500" />
-                    Owner Pay
-                  </Label>
-                  <span className="text-orange-500 font-mono font-bold">{settings.owner_pay_percent}%</span>
-                </div>
-                <Slider
-                  value={[settings.owner_pay_percent]}
-                  onValueChange={([v]) => handlePercentChange('owner_pay_percent', v)}
-                  max={100}
-                  min={0}
-                  step={5}
-                  className="w-full"
-                />
-              </div>
-
-              {/* Growth */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <Label className="text-zinc-400 flex items-center">
-                    <TrendingUp className="w-4 h-4 mr-2 text-emerald-500" />
-                    Growth / Savings
-                  </Label>
-                  <span className="text-emerald-500 font-mono font-bold">{settings.growth_percent}%</span>
-                </div>
-                <Slider
-                  value={[settings.growth_percent]}
-                  onValueChange={([v]) => handlePercentChange('growth_percent', v)}
-                  max={100}
-                  min={0}
-                  step={5}
-                  className="w-full"
-                />
-              </div>
-
-              {/* Emergency */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <Label className="text-zinc-400 flex items-center">
-                    <Shield className="w-4 h-4 mr-2 text-blue-500" />
-                    Emergency / Tax
-                  </Label>
-                  <span className="text-blue-500 font-mono font-bold">{settings.emergency_percent}%</span>
-                </div>
-                <Slider
-                  value={[settings.emergency_percent]}
-                  onValueChange={([v]) => handlePercentChange('emergency_percent', v)}
-                  max={100}
-                  min={0}
-                  step={5}
-                  className="w-full"
-                />
-              </div>
-
-              {/* Buffer */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <Label className="text-zinc-400 flex items-center">
-                    <PiggyBank className="w-4 h-4 mr-2 text-purple-500" />
-                    Business Buffer
-                  </Label>
-                  <span className="text-purple-500 font-mono font-bold">{settings.buffer_percent}%</span>
-                </div>
-                <Slider
-                  value={[settings.buffer_percent]}
-                  onValueChange={([v]) => handlePercentChange('buffer_percent', v)}
-                  max={100}
-                  min={0}
-                  step={5}
-                  className="w-full"
-                />
-              </div>
-
-              {/* Total */}
-              <div className={`p-3 rounded-lg ${totalPercent === 100 ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-red-500/10 border border-red-500/20'}`}>
-                <div className="flex justify-between">
-                  <span className={totalPercent === 100 ? 'text-emerald-500' : 'text-red-500'}>Total</span>
-                  <span className={`font-mono font-bold ${totalPercent === 100 ? 'text-emerald-500' : 'text-red-500'}`}>
-                    {totalPercent}%
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <Button
-              onClick={saveSettings}
-              disabled={saving || totalPercent !== 100}
-              className="w-full bg-orange-500 hover:bg-orange-600"
-              data-testid="save-settings-btn"
-            >
-              <Save className="w-4 h-4 mr-2" />
-              {saving ? "Saving..." : "Save Settings"}
-            </Button>
-          </CardContent>
-        </Card>
+        <AllocationSettingsPanel
+          settings={settings}
+          onPercentChange={handlePercentChange}
+          onSave={saveSettings}
+          saving={saving}
+          totalPercent={totalPercent}
+        />
 
         {/* Calculator Card */}
         <Card className="bg-zinc-900 border-zinc-800">

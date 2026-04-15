@@ -1,5 +1,5 @@
 import { toast } from "sonner";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import axios from "axios";
 import { API } from "../App";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -18,6 +18,7 @@ const RefillTrends = () => {
       .then(r => setData(r.data))
       .catch(() => { toast.error('Failed to load data'); })
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- only module-level imports (API, axios, toast) and stable state setters used
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -26,6 +27,7 @@ const RefillTrends = () => {
 
   const totalSpent = data.reduce((a, p) => a + p.total_spent, 0);
   const totalBought = data.reduce((a, p) => a + p.total_units_bought, 0);
+  const productsWithHistory = data.filter(p => p.cost_history.length > 0);
 
   return (
     <div className="space-y-6" data-testid="refill-trends">
@@ -124,7 +126,7 @@ const RefillTrends = () => {
       </Card>
 
       {/* Purchase History per product */}
-      {data.filter(p => p.cost_history.length > 0).map(p => (
+      {productsWithHistory.map(p => (
         <Card key={p.product_id} className="bg-zinc-900 border-zinc-800">
           <CardHeader><CardTitle className="text-base font-heading text-zinc-50">{p.name} - Purchase History</CardTitle></CardHeader>
           <CardContent className="p-0">

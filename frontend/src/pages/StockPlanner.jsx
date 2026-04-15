@@ -47,6 +47,7 @@ const StockPlanner = () => {
       }
     };
     fetchMarkets();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- only module-level imports (API, axios, toast) and stable state setters used
   }, []);
 
   const calculateStockPlan = useCallback(async () => {

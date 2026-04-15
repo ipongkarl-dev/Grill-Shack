@@ -27,6 +27,7 @@ const ScalePlanner = () => {
     finally { setLoading(false); }
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- only module-level imports (API, axios, toast) and stable state setters used
   useEffect(() => { fetchPlan(); }, []);
 
   if (loading) return <div className="h-96 bg-zinc-900 rounded-xl animate-pulse" />;

@@ -301,7 +301,7 @@ class ProductIngredientsUpdate(BaseModel):
 
 def serialize_doc(doc: dict) -> dict:
     """Remove MongoDB _id and serialize datetime fields"""
-    if doc is None:  # noqa: E711 - intentional None check
+    if doc is None:
         return None
     doc.pop('_id', None)
     for key, value in doc.items():
@@ -468,6 +468,31 @@ def aggregate_by_period(sessions: list, key_fn) -> dict:
         period_data[key]['sessions'] += 1
         period_data[key]['cogs'] += s.get('total_cogs', 0)
     return period_data
+
+
+def summarize_sessions(sessions):
+    """Compute aggregate totals from a list of sessions."""
+    return {
+        "total_sales": sum(s.get('calculated_sales', 0) for s in sessions),
+        "total_cogs": sum(s.get('total_cogs', 0) for s in sessions),
+        "total_profit": sum(s.get('gross_profit', 0) for s in sessions),
+        "total_units": sum(s.get('total_units', 0) for s in sessions),
+        "total_cash_expenses": sum(s.get('cash_expenses', 0) for s in sessions),
+        "session_count": len(sessions),
+    }
+
+
+def aggregate_market_sales(sessions):
+    """Build per-market sales breakdown from sessions."""
+    market_sales = {}
+    for s in sessions:
+        market = s.get('market_name', 'Unknown')
+        if market not in market_sales:
+            market_sales[market] = {'sales': 0, 'units': 0, 'sessions': 0}
+        market_sales[market]['sales'] += s.get('calculated_sales', 0)
+        market_sales[market]['units'] += s.get('total_units', 0)
+        market_sales[market]['sessions'] += 1
+    return market_sales
 
 
 # ===================== ROUTES =====================
@@ -721,51 +746,29 @@ async def delete_session(session_id: str):
 
 @api_router.get("/dashboard/kpis")
 async def get_dashboard_kpis():
-    # Get all sessions
     sessions = await db.sessions.find({}, {"_id": 0}).to_list(1000)
     products = await db.products.find({}, {"_id": 0}).to_list(100)
-    
-    total_sales = sum(s.get('calculated_sales', 0) for s in sessions)
-    total_cogs = sum(s.get('total_cogs', 0) for s in sessions)
-    total_profit = sum(s.get('gross_profit', 0) for s in sessions)
-    total_units = sum(s.get('total_units', 0) for s in sessions)
-    session_count = len(sessions)
-    
-    avg_cogs_percent = (total_cogs / total_sales * 100) if total_sales > 0 else 0
-    
-    # Low stock alerts
-    low_stock_products = [p for p in products if p.get('current_stock', 0) <= p.get('reorder_point', 10)]
-    
-    # Recent sessions (last 7)
-    recent_sessions = sorted(sessions, key=lambda x: x.get('date', ''), reverse=True)[:7]
-    
-    # Sales by market
-    market_sales = {}
-    total_cash_expenses = 0
-    for s in sessions:
-        market = s.get('market_name', 'Unknown')
-        if market not in market_sales:
-            market_sales[market] = {'sales': 0, 'units': 0, 'sessions': 0}
-        market_sales[market]['sales'] += s.get('calculated_sales', 0)
-        market_sales[market]['units'] += s.get('total_units', 0)
-        market_sales[market]['sessions'] += 1
-        total_cash_expenses += s.get('cash_expenses', 0)
 
-    # Net profit = gross profit - cash expenses (market fees, overheads)
+    totals = summarize_sessions(sessions)
+    avg_cogs_percent = (totals["total_cogs"] / totals["total_sales"] * 100) if totals["total_sales"] > 0 else 0
+    low_stock_products = [p for p in products if p.get('current_stock', 0) <= p.get('reorder_point', 10)]
+    recent_sessions = sorted(sessions, key=lambda x: x.get('date', ''), reverse=True)[:7]
+    market_sales = aggregate_market_sales(sessions)
+
     settings_doc = await db.allocation_settings.find_one({"id": "default"}, {"_id": 0})
     gst_rate = (settings_doc.get('gst_rate', 15) if settings_doc else 15) / 100
-    gst_amount = total_sales * gst_rate / (1 + gst_rate)
-    net_profit = total_profit - total_cash_expenses - gst_amount
+    gst_amount = totals["total_sales"] * gst_rate / (1 + gst_rate)
+    net_profit = totals["total_profit"] - totals["total_cash_expenses"] - gst_amount
 
     return {
-        "total_sales": round(total_sales, 2),
-        "total_cogs": round(total_cogs, 2),
-        "total_profit": round(total_profit, 2),
+        "total_sales": round(totals["total_sales"], 2),
+        "total_cogs": round(totals["total_cogs"], 2),
+        "total_profit": round(totals["total_profit"], 2),
         "net_profit": round(net_profit, 2),
         "gst_amount": round(gst_amount, 2),
-        "total_cash_expenses": round(total_cash_expenses, 2),
-        "total_units": total_units,
-        "session_count": session_count,
+        "total_cash_expenses": round(totals["total_cash_expenses"], 2),
+        "total_units": totals["total_units"],
+        "session_count": totals["session_count"],
         "avg_cogs_percent": round(avg_cogs_percent, 2),
         "low_stock_products": low_stock_products,
         "recent_sessions": recent_sessions,
@@ -1816,6 +1819,43 @@ async def delete_purchase_order(po_id: str, request: Request):
 
 # -------- HISTORICAL COMPARISON --------
 
+def _period_label(key):
+    """Generate human-readable label for a period key (week or month)."""
+    from datetime import date as dt_date_lbl
+    if key.startswith("20") and "-W" in key:
+        parts = key.split("-W")
+        yr, wk = parts[0], int(parts[1])
+        try:
+            d_ref = dt_date_lbl.fromisocalendar(int(yr), wk, 1)
+            return f"{yr} Week {wk} ({d_ref.strftime('%b')})"
+        except (ValueError, TypeError):
+            return f"{yr} Week {wk}"
+    if key.startswith("20") and len(key) == 7:
+        try:
+            d_ref = dt_date_lbl(int(key[:4]), int(key[5:7]), 1)
+            return d_ref.strftime('%B %Y')
+        except (ValueError, TypeError):
+            pass
+    return key
+
+
+def _calc_growth_series(period_data):
+    """Convert period aggregates into a growth series with labels."""
+    sorted_keys = sorted(period_data.keys())
+    result = []
+    for i, key in enumerate(sorted_keys):
+        d = period_data[key]
+        prev = period_data[sorted_keys[i - 1]] if i > 0 else None
+        growth = ((d['sales'] - prev['sales']) / prev['sales'] * 100) if prev and prev['sales'] > 0 else 0
+        result.append({
+            'period': key, 'label': _period_label(key),
+            'sales': round(d['sales'], 2), 'profit': round(d['profit'], 2),
+            'units': d['units'], 'sessions': d['sessions'],
+            'cogs': round(d['cogs'], 2), 'growth_pct': round(growth, 1)
+        })
+    return result
+
+
 @api_router.get("/dashboard/historical")
 async def get_historical_comparison():
     sessions = await db.sessions.find({}, {"_id": 0}).to_list(1000)
@@ -1833,48 +1873,12 @@ async def get_historical_comparison():
     def month_key(s):
         return s.get('date', '')[:7] or None
 
-    def calc_growth_series(period_data):
-        sorted_keys = sorted(period_data.keys())
-        result = []
-        for i, key in enumerate(sorted_keys):
-            d = period_data[key]
-            prev = period_data[sorted_keys[i - 1]] if i > 0 else None
-            growth = ((d['sales'] - prev['sales']) / prev['sales'] * 100) if prev and prev['sales'] > 0 else 0
-            # Add human-readable label
-            label = key
-            if key.startswith("20") and "-W" in key:
-                # Week format: 2026-W08 → "2026 Week 8 (Feb)"
-                parts = key.split("-W")
-                yr, wk = parts[0], int(parts[1])
-                try:
-                    from datetime import date as dt_date2
-                    d_ref = dt_date2.fromisocalendar(int(yr), wk, 1)
-                    month_name = d_ref.strftime('%b')
-                    label = f"{yr} Week {wk} ({month_name})"
-                except (ValueError, TypeError):
-                    label = f"{yr} Week {wk}"
-            elif key.startswith("20") and len(key) == 7:
-                # Month format: 2026-03 → "March 2026"
-                try:
-                    from datetime import date as dt_date2
-                    d_ref = dt_date2(int(key[:4]), int(key[5:7]), 1)
-                    label = d_ref.strftime('%B %Y')
-                except (ValueError, TypeError):
-                    pass
-            result.append({
-                'period': key, 'label': label,
-                'sales': round(d['sales'], 2), 'profit': round(d['profit'], 2),
-                'units': d['units'], 'sessions': d['sessions'],
-                'cogs': round(d['cogs'], 2), 'growth_pct': round(growth, 1)
-            })
-        return result
-
     week_data = aggregate_by_period(sessions, week_key)
     month_data = aggregate_by_period(sessions, month_key)
 
     return {
-        "week_over_week": calc_growth_series(week_data),
-        "month_over_month": calc_growth_series(month_data)
+        "week_over_week": _calc_growth_series(week_data),
+        "month_over_month": _calc_growth_series(month_data)
     }
 
 
@@ -1964,10 +1968,8 @@ async def export_cashflow_excel():
     buf.seek(0)
     return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": "attachment; filename=GrillShack_Cashflow.xlsx"})
 
-@api_router.get("/export/sales-by-month-market")
-async def export_sales_by_month_market():
-    """Sales by month with all markets breakdown — Excel download."""
-    sessions = await db.sessions.find({}, {"_id": 0}).to_list(5000)
+def _aggregate_month_market(sessions):
+    """Aggregate sessions by month and market."""
     markets_set = sorted(set(s.get('market_name', 'Unknown') for s in sessions))
     data = {}
     for s in sessions:
@@ -1978,20 +1980,33 @@ async def export_sales_by_month_market():
         data[month][market]['sales'] += s.get('calculated_sales', 0)
         data[month][market]['units'] += s.get('total_units', 0)
         data[month][market]['profit'] += s.get('gross_profit', 0)
+    return data, markets_set
+
+
+def _month_market_to_rows(data, markets_set):
+    """Convert month-market aggregated data into Excel rows."""
     headers = ["Month"] + [f"{m} Sales" for m in markets_set] + [f"{m} Units" for m in markets_set] + ["Total Sales", "Total Units", "Total Profit"]
     rows = []
     for month in sorted(data.keys()):
         row = [month]
-        total_s, total_u, total_p = 0, 0, 0
         for m in markets_set:
             row.append(round(data[month][m]['sales'], 2))
-            total_s += data[month][m]['sales']
         for m in markets_set:
             row.append(data[month][m]['units'])
-            total_u += data[month][m]['units']
+        total_s = sum(data[month][m]['sales'] for m in markets_set)
+        total_u = sum(data[month][m]['units'] for m in markets_set)
         total_p = sum(data[month][m]['profit'] for m in markets_set)
         row.extend([round(total_s, 2), total_u, round(total_p, 2)])
         rows.append(row)
+    return headers, rows
+
+
+@api_router.get("/export/sales-by-month-market")
+async def export_sales_by_month_market():
+    """Sales by month with all markets breakdown — Excel download."""
+    sessions = await db.sessions.find({}, {"_id": 0}).to_list(5000)
+    data, markets_set = _aggregate_month_market(sessions)
+    headers, rows = _month_market_to_rows(data, markets_set)
     wb = _make_excel_workbook("Sales by Month & Market", headers, rows)
     buf = io.BytesIO()
     wb.save(buf)

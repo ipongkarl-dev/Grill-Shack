@@ -42,6 +42,7 @@ const QuickMode = ({ user }) => {
       finally { setLoading(false); }
     };
     fetch();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- only module-level imports (API, axios, toast) and stable state setters used
   }, []);
 
   const increment = (id) => setCounts(c => ({ ...c, [id]: (c[id] || 0) + 1 }));

@@ -14,9 +14,9 @@ import os
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 
-# Test credentials
-OWNER_EMAIL = "owner@grillshack.nz"
-OWNER_PASSWORD = "GrillShack2026!"
+# Test credentials from environment (fallback for CI)
+OWNER_EMAIL = os.environ.get("TEST_OWNER_EMAIL", "owner@grillshack.nz")
+OWNER_PASSWORD = os.environ.get("TEST_OWNER_PASSWORD", "GrillShack2026!")
 
 
 class TestAuth:

@@ -31,7 +31,7 @@ const PrepChecklist = () => {
       setCheckedItems(initial);
     } catch (_e) { toast.error('Failed to load data'); }
     finally { setLoading(false); }
-  }, []);
+  }, [targetRevenue, selectedMarket]);
 
   useEffect(() => { fetchChecklist(); }, [fetchChecklist]);
 

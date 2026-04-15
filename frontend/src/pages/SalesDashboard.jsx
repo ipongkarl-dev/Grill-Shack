@@ -68,6 +68,7 @@ const SalesDashboard = () => {
     } finally {
       setLoading(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- only module-level imports (API, axios, toast) and stable state setters used
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);

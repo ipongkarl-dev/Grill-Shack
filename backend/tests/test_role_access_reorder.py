@@ -13,11 +13,11 @@ import os
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://kitchen-analytics-4.preview.emergentagent.com').rstrip('/')
 API_URL = f"{BASE_URL}/api"
 
-# Test credentials
-OWNER_EMAIL = "owner@grillshack.nz"
-OWNER_PASSWORD = "GrillShack2026!"
-STAFF_EMAIL = "staff@grillshack.nz"
-STAFF_PASSWORD = "Staff2026!"
+# Test credentials from environment (fallback for CI)
+OWNER_EMAIL = os.environ.get("TEST_OWNER_EMAIL", "owner@grillshack.nz")
+OWNER_PASSWORD = os.environ.get("TEST_OWNER_PASSWORD", "GrillShack2026!")
+STAFF_EMAIL = os.environ.get("TEST_STAFF_EMAIL", "staff@grillshack.nz")
+STAFF_PASSWORD = os.environ.get("TEST_STAFF_PASSWORD", "Staff2026!")
 
 
 @pytest.fixture(scope="module")
