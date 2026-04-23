@@ -3,13 +3,13 @@ import axios from "axios";
 import { API } from "../App";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Badge } from "../components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
-import { Plus, Pencil, Trash2, Truck, Phone, Mail, MapPin } from "lucide-react";
+import { Plus, Pencil, Trash2, Truck, Phone, Mail, MapPin, LayoutGrid, List, Grid3x3 } from "lucide-react";
 
 const SupplierDirectory = () => {
   const [suppliers, setSuppliers] = useState([]);
@@ -17,6 +17,7 @@ const SupplierDirectory = () => {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [viewMode, setViewMode] = useState("tile");
   const [form, setForm] = useState({ name: "", contact_person: "", phone: "", email: "", address: "", products: [], notes: "" });
 
   const fetchData = useCallback(async () => {
@@ -145,7 +146,18 @@ const SupplierDirectory = () => {
         </Dialog>
       </div>
 
-      {/* Supplier Cards */}
+      {/* View Mode Toggle */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-zinc-500">View:</span>
+        {[{ id: "tile", icon: LayoutGrid, label: "Tile" }, { id: "grid", icon: Grid3x3, label: "Grid" }, { id: "list", icon: List, label: "List" }].map(v => (
+          <Button key={v.id} size="sm" variant={viewMode === v.id ? "default" : "ghost"} onClick={() => setViewMode(v.id)}
+            className={viewMode === v.id ? "bg-orange-500 hover:bg-orange-600 h-8" : "text-zinc-400 hover:text-zinc-200 h-8"} data-testid={`view-${v.id}`}>
+            <v.icon className="w-4 h-4 mr-1" /> {v.label}
+          </Button>
+        ))}
+      </div>
+
+      {/* Supplier Display */}
       {suppliers.length === 0 ? (
         <Card className="bg-zinc-900 border-zinc-800">
           <CardContent className="py-12 text-center text-zinc-500">
@@ -154,48 +166,75 @@ const SupplierDirectory = () => {
             <p className="text-sm mt-1">Add your suppliers to track contacts and product associations</p>
           </CardContent>
         </Card>
+      ) : viewMode === "list" ? (
+        /* LIST VIEW */
+        <Card className="bg-zinc-900 border-zinc-800">
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-zinc-800 hover:bg-transparent">
+                  <TableHead className="text-zinc-400">Name</TableHead>
+                  <TableHead className="text-zinc-400">Contact</TableHead>
+                  <TableHead className="text-zinc-400">Phone</TableHead>
+                  <TableHead className="text-zinc-400">Email</TableHead>
+                  <TableHead className="text-zinc-400">Products</TableHead>
+                  <TableHead className="text-zinc-400 text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {suppliers.map(s => (
+                  <TableRow key={s.id} className="border-zinc-800 hover:bg-zinc-800/50">
+                    <TableCell className="font-medium text-zinc-200">{s.name}</TableCell>
+                    <TableCell className="text-zinc-400">{s.contact_person || '-'}</TableCell>
+                    <TableCell className="text-zinc-400">{s.phone || '-'}</TableCell>
+                    <TableCell>{s.email ? <a href={`mailto:${s.email}`} className="text-orange-400 hover:text-orange-300 underline underline-offset-2">{s.email}</a> : '-'}</TableCell>
+                    <TableCell><div className="flex flex-wrap gap-1">{(s.products || []).map(c => <Badge key={c} className="bg-zinc-800 text-zinc-300 text-xs">{c}</Badge>)}</div></TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => openEdit(s)} className="text-zinc-400 hover:text-zinc-200 h-8 w-8 p-0"><Pencil className="w-3 h-3" /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => handleDelete(s.id)} className="text-zinc-400 hover:text-red-500 h-8 w-8 p-0"><Trash2 className="w-3 h-3" /></Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        /* TILE & GRID VIEWS */
+        <div className={viewMode === "grid" ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3" : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"}>
           {suppliers.map(s => (
             <Card key={s.id} className="bg-zinc-900 border-zinc-800 card-hover">
-              <CardContent className="p-5">
+              <CardContent className={viewMode === "grid" ? "p-3" : "p-5"}>
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-orange-500/10 flex items-center justify-center">
-                      <Truck className="w-5 h-5 text-orange-500" />
+                    <div className={`${viewMode === "grid" ? "w-8 h-8" : "w-10 h-10"} rounded-lg bg-orange-500/10 flex items-center justify-center`}>
+                      <Truck className={`${viewMode === "grid" ? "w-4 h-4" : "w-5 h-5"} text-orange-500`} />
                     </div>
                     <div>
-                      <p className="font-heading font-bold text-zinc-50">{s.name}</p>
+                      <p className={`font-heading font-bold text-zinc-50 ${viewMode === "grid" ? "text-sm" : ""}`}>{s.name}</p>
                       {s.contact_person && <p className="text-xs text-zinc-500">{s.contact_person}</p>}
                     </div>
                   </div>
                   <div className="flex gap-1">
-                    <Button size="sm" variant="ghost" onClick={() => openEdit(s)} className="text-zinc-400 hover:text-zinc-200 h-8 w-8 p-0">
-                      <Pencil className="w-3 h-3" />
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => handleDelete(s.id)} className="text-zinc-400 hover:text-red-500 h-8 w-8 p-0">
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => openEdit(s)} className="text-zinc-400 hover:text-zinc-200 h-8 w-8 p-0"><Pencil className="w-3 h-3" /></Button>
+                    <Button size="sm" variant="ghost" onClick={() => handleDelete(s.id)} className="text-zinc-400 hover:text-red-500 h-8 w-8 p-0"><Trash2 className="w-3 h-3" /></Button>
                   </div>
                 </div>
-
                 <div className="space-y-2 text-sm">
                   {s.phone && <div className="flex items-center gap-2 text-zinc-400"><Phone className="w-3 h-3" /><span>{s.phone}</span></div>}
-                  {s.email && <div className="flex items-center gap-2 text-zinc-400"><Mail className="w-3 h-3" /><span>{s.email}</span></div>}
+                  {s.email && <div className="flex items-center gap-2"><Mail className="w-3 h-3 text-zinc-400" /><a href={`mailto:${s.email}`} className="text-orange-400 hover:text-orange-300 underline underline-offset-2 text-sm">{s.email}</a></div>}
                   {s.address && <div className="flex items-center gap-2 text-zinc-400"><MapPin className="w-3 h-3" /><span>{s.address}</span></div>}
                 </div>
-
                 {s.products?.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-zinc-800">
                     <p className="text-xs text-zinc-500 mb-2">Products</p>
                     <div className="flex flex-wrap gap-1">
-                      {s.products.map(code => (
-                        <Badge key={code} className="bg-zinc-800 text-zinc-300 text-xs">{code}</Badge>
-                      ))}
+                      {s.products.map(code => <Badge key={code} className="bg-zinc-800 text-zinc-300 text-xs">{code}</Badge>)}
                     </div>
                   </div>
                 )}
-
                 {s.notes && <p className="text-xs text-zinc-500 mt-3 italic">{s.notes}</p>}
               </CardContent>
             </Card>

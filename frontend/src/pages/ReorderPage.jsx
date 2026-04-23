@@ -8,7 +8,7 @@ import { Input } from "../components/ui/input";
 import { Badge } from "../components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
-import { ShoppingCart, Package, Truck, Clock, CheckCircle, XCircle, Send, FileText, Trash2 } from "lucide-react";
+import { ShoppingCart, Package, Truck, Clock, CheckCircle, XCircle, Send, FileText, Trash2, Printer, Pencil } from "lucide-react";
 
 const fmt = (v) => new Intl.NumberFormat('en-NZ', { style: 'currency', currency: 'NZD', minimumFractionDigits: 2 }).format(v);
 
@@ -24,6 +24,8 @@ const ReorderPage = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingPO, setEditingPO] = useState(null);
   const [selectedItems, setSelectedItems] = useState([]);
   const [poNotes, setPoNotes] = useState("");
 
@@ -99,6 +101,38 @@ const ReorderPage = () => {
       toast.success("Deleted");
       fetchData();
     } catch (_e) { toast.error("Failed to delete"); }
+  };
+
+  const openEditPO = (po) => {
+    setEditingPO(po);
+    setSelectedItems((po.items || []).map(i => ({ ...i, selected: true })));
+    setPoNotes(po.notes || "");
+    setEditDialogOpen(true);
+  };
+
+  const saveEditPO = async () => {
+    const items = selectedItems.filter(s => s.selected && s.qty_needed > 0);
+    try {
+      await axios.put(`${API}/reorder/purchase-orders/${editingPO.id}`, {
+        items: items.map(i => ({ product_id: i.product_id, product_name: i.product_name, qty_needed: i.qty_needed, unit_cost: i.unit_cost, estimated_cost: round2(i.qty_needed * i.unit_cost) })),
+        notes: poNotes
+      });
+      toast.success("PO updated");
+      setEditDialogOpen(false);
+      fetchData();
+    } catch (_e) { toast.error("Failed to update PO"); }
+  };
+
+  const printPO = (po) => {
+    const w = window.open('', '_blank');
+    w.document.write(`<html><head><title>PO ${po.po_number}</title><style>body{font-family:sans-serif;padding:40px;color:#222}table{width:100%;border-collapse:collapse;margin:20px 0}th,td{border:1px solid #ccc;padding:8px;text-align:left}th{background:#f97316;color:white}.header{display:flex;justify-content:space-between;border-bottom:2px solid #f97316;padding-bottom:15px;margin-bottom:20px}.total{font-size:18px;font-weight:bold;text-align:right;margin-top:15px}@media print{button{display:none}}</style></head><body>`);
+    w.document.write(`<div class="header"><div><h1 style="margin:0;color:#f97316">GRILL SHACK</h1><p style="margin:5px 0 0">Purchase Order</p></div><div style="text-align:right"><p><strong>${po.po_number}</strong></p><p>Date: ${po.created_at?.slice(0, 10)}</p><p>Supplier: ${po.supplier_name}</p><p>Status: ${po.status}</p></div></div>`);
+    w.document.write('<table><tr><th>Product</th><th>Qty</th><th>Unit Cost</th><th>Est. Cost</th></tr>');
+    (po.items || []).forEach(i => { w.document.write(`<tr><td>${i.product_name}</td><td>${i.qty_needed}</td><td>$${i.unit_cost?.toFixed(2)}</td><td>$${i.estimated_cost?.toFixed(2)}</td></tr>`); });
+    w.document.write(`</table><p class="total">Total: $${po.total_estimated?.toFixed(2)}</p>`);
+    if (po.notes) w.document.write(`<p><strong>Notes:</strong> ${po.notes}</p>`);
+    w.document.write('<br><button onclick="window.print()">Print</button></body></html>');
+    w.document.close();
   };
 
   if (loading) return <div className="h-96 bg-zinc-900 rounded-xl animate-pulse" />;
@@ -271,14 +305,25 @@ const ReorderPage = () => {
                           <StatusIcon className="w-3 h-3 mr-1" /> {o.status}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-zinc-500 text-xs">{o.created_at?.slice(0, 10)}</TableCell>
+                      <TableCell className="text-zinc-500 text-xs">
+                        <div>{o.created_at?.slice(0, 10)}</div>
+                        <div className="text-zinc-600">{o.created_at?.slice(11, 16)}</div>
+                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
+                          <Button size="sm" variant="ghost" onClick={() => printPO(o)} className="text-zinc-400 hover:text-zinc-200" data-testid={`print-po-${o.po_number}`}>
+                            <Printer className="w-3.5 h-3.5" />
+                          </Button>
                           {o.status === "pending" && (
-                            <Button size="sm" variant="ghost" onClick={() => updateStatus(o.id, "ordered")}
-                              className="text-blue-400 hover:text-blue-300 text-xs" data-testid={`mark-ordered-${o.po_number}`}>
-                              Mark Ordered
-                            </Button>
+                            <>
+                              <Button size="sm" variant="ghost" onClick={() => openEditPO(o)} className="text-zinc-400 hover:text-zinc-200">
+                                <Pencil className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button size="sm" variant="ghost" onClick={() => updateStatus(o.id, "ordered")}
+                                className="text-blue-400 hover:text-blue-300 text-xs" data-testid={`mark-ordered-${o.po_number}`}>
+                                Ordered
+                              </Button>
+                            </>
                           )}
                           {o.status === "ordered" && (
                             <Button size="sm" variant="ghost" onClick={() => updateStatus(o.id, "received")}
@@ -335,6 +380,37 @@ const ReorderPage = () => {
               <Button variant="outline" onClick={() => setCreateDialogOpen(false)} className="flex-1 border-zinc-700 hover:bg-zinc-800">Cancel</Button>
               <Button onClick={createPO} className="flex-1 bg-orange-500 hover:bg-orange-600" data-testid="confirm-po-btn">
                 <Send className="w-4 h-4 mr-2" /> Create PO
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {/* Edit PO Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="bg-zinc-900 border-zinc-800 max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-zinc-50 font-heading">Edit Purchase Order{editingPO ? ` — ${editingPO.po_number}` : ''}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+            {selectedItems.map((item, idx) => (
+              <div key={item.product_id || idx} className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${item.selected ? 'bg-zinc-800/50 border-orange-500/30' : 'bg-zinc-800/20 border-zinc-800 opacity-50'}`}>
+                <input type="checkbox" checked={item.selected} onChange={() => toggleItem(idx)} className="accent-orange-500" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-zinc-200 truncate">{item.product_name}</p>
+                  <p className="text-xs text-zinc-500">Unit: {fmt(item.unit_cost)}</p>
+                </div>
+                <Input type="number" min="0" value={item.qty_needed} onChange={e => updateQty(idx, e.target.value)} className="w-20 bg-zinc-800 border-zinc-700 text-center text-sm" disabled={!item.selected} />
+                <span className="text-xs text-zinc-400 w-16 text-right">{fmt(item.qty_needed * item.unit_cost)}</span>
+              </div>
+            ))}
+            <div className="space-y-2">
+              <label className="text-xs text-zinc-500">Notes</label>
+              <Input value={poNotes} onChange={e => setPoNotes(e.target.value)} className="bg-zinc-800 border-zinc-700" />
+            </div>
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={() => setEditDialogOpen(false)} className="flex-1 border-zinc-700 hover:bg-zinc-800">Cancel</Button>
+              <Button onClick={saveEditPO} className="flex-1 bg-orange-500 hover:bg-orange-600" data-testid="save-edit-po-btn">
+                Save Changes
               </Button>
             </div>
           </div>

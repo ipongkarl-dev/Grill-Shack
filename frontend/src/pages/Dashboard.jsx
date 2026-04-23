@@ -42,33 +42,32 @@ const KPICard = ({ title, value, icon: Icon, trend, trendValue, color = "orange"
     orange: "text-orange-500",
     emerald: "text-emerald-500",
     blue: "text-blue-500",
-    purple: "text-purple-500"
+    purple: "text-purple-500",
+    cyan: "text-cyan-500"
   };
 
   return (
     <Card className="bg-zinc-900 border-zinc-800 card-hover">
       <CardContent className="p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="kpi-label mb-2">{title}</p>
-            <p className={`kpi-value ${colors[color]}`}>{value}</p>
-            {trend && (
-              <div className="flex items-center mt-2 text-sm">
-                {trend === "up" ? (
-                  <ArrowUpRight className="w-4 h-4 text-emerald-500 mr-1" />
-                ) : (
-                  <ArrowDownRight className="w-4 h-4 text-red-500 mr-1" />
-                )}
-                <span className={trend === "up" ? "text-emerald-500" : "text-red-500"}>
-                  {trendValue}
-                </span>
-              </div>
-            )}
+        <div className="flex items-center gap-3 mb-2">
+          <div className={`p-2 rounded-lg bg-zinc-800 ${colors[color]}`}>
+            <Icon className="w-5 h-5" />
           </div>
-          <div className={`p-3 rounded-xl bg-zinc-800 ${colors[color]}`}>
-            <Icon className="w-6 h-6" />
-          </div>
+          <p className="kpi-label">{title}</p>
         </div>
+        <p className={`kpi-value ${colors[color]}`}>{value}</p>
+        {trend && (
+          <div className="flex items-center mt-2 text-sm">
+            {trend === "up" ? (
+              <ArrowUpRight className="w-4 h-4 text-emerald-500 mr-1" />
+            ) : (
+              <ArrowDownRight className="w-4 h-4 text-red-500 mr-1" />
+            )}
+            <span className={trend === "up" ? "text-emerald-500" : "text-red-500"}>
+              {trendValue}
+            </span>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

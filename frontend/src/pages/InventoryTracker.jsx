@@ -13,8 +13,9 @@ import { Badge } from "../components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog";
 import { format } from "date-fns";
-import { InventoryTable } from "../components/InventoryTable";
+import { Link } from "react-router-dom";
 import { CalendarIcon, Plus, Package, Truck, FileText, ArrowRight, Pencil, Trash2, Download } from "lucide-react";
+import { InventoryTable } from "../components/InventoryTable";
 
 const fmt = (v) => new Intl.NumberFormat('en-NZ', { style: 'currency', currency: 'NZD', minimumFractionDigits: 2 }).format(v);
 
@@ -245,13 +246,13 @@ const InventoryTracker = () => {
       <Card className="bg-zinc-900 border-zinc-800 border-orange-500/20">
         <CardContent className="p-4">
           <div className="flex items-center justify-center gap-3 text-sm flex-wrap">
-            <Badge className="bg-orange-500/10 text-orange-500">Raw Material Purchase</Badge>
+            <Link to="/inventory"><Badge className="bg-orange-500/10 text-orange-500 cursor-pointer hover:bg-orange-500/20 transition-colors">Raw Material Purchase</Badge></Link>
             <ArrowRight className="w-4 h-4 text-zinc-600" />
-            <Badge className="bg-blue-500/10 text-blue-500">Ingredient Cost Updates</Badge>
+            <Link to="/calculator"><Badge className="bg-blue-500/10 text-blue-500 cursor-pointer hover:bg-blue-500/20 transition-colors">Ingredient Cost Updates</Badge></Link>
             <ArrowRight className="w-4 h-4 text-zinc-600" />
-            <Badge className="bg-emerald-500/10 text-emerald-500">Product COGS Recalculates</Badge>
+            <Link to="/products"><Badge className="bg-emerald-500/10 text-emerald-500 cursor-pointer hover:bg-emerald-500/20 transition-colors">Product COGS Recalculates</Badge></Link>
             <ArrowRight className="w-4 h-4 text-zinc-600" />
-            <Badge className="bg-purple-500/10 text-purple-500">Session Margins Update</Badge>
+            <Link to="/session"><Badge className="bg-purple-500/10 text-purple-500 cursor-pointer hover:bg-purple-500/20 transition-colors">Session Margins Update</Badge></Link>
           </div>
         </CardContent>
       </Card>

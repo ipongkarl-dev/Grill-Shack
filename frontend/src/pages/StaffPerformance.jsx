@@ -8,6 +8,7 @@ import { Badge } from "../components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from "recharts";
 import { Users, Trophy, TrendingUp, DollarSign, ShoppingCart, Star, MapPin } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 
 const fmt = (v) => new Intl.NumberFormat('en-NZ', { style: 'currency', currency: 'NZD' }).format(v);
 const COLORS = ['#f97316', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6', '#f59e0b'];
@@ -15,6 +16,7 @@ const COLORS = ['#f97316', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6'
 const StaffPerformance = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedStaff, setSelectedStaff] = useState("all");
 
   const fetchData = useCallback(() => {
     axios.get(`${API}/dashboard/staff-performance`)
@@ -31,25 +33,39 @@ const StaffPerformance = () => {
   const totalSales = data.reduce((a, s) => a + s.total_sales, 0);
   const totalSessions = data.reduce((a, s) => a + s.sessions, 0);
   const topPerformer = data[0];
+  const filteredData = selectedStaff === "all" ? data : data.filter(d => d.user_id === selectedStaff);
 
   // Chart data
-  const barData = data.filter(d => d.name !== 'System (Seeded)').map(d => ({
+  const barData = filteredData.filter(d => d.name !== 'System (Seeded)').map(d => ({
     name: d.name.split(' ')[0],
     sales: d.total_sales,
     profit: d.total_profit,
     sessions: d.sessions
   }));
 
-  const pieData = data.filter(d => d.total_sales > 0).map(d => ({
+  const pieData = filteredData.filter(d => d.total_sales > 0).map(d => ({
     name: d.name,
     value: d.total_sales
   }));
 
   return (
     <div className="space-y-6" data-testid="staff-performance">
-      <div>
-        <h1 className="text-3xl sm:text-4xl font-heading font-bold text-zinc-50">Staff Performance</h1>
-        <p className="text-zinc-400 mt-2">Track sales performance per team member across markets</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl sm:text-4xl font-heading font-bold text-zinc-50">Staff Performance</h1>
+          <p className="text-zinc-400 mt-2">Track sales performance per team member across markets</p>
+        </div>
+        <Select value={selectedStaff} onValueChange={setSelectedStaff}>
+          <SelectTrigger className="w-[200px] bg-zinc-900 border-zinc-700" data-testid="staff-filter">
+            <SelectValue placeholder="All Staff" />
+          </SelectTrigger>
+          <SelectContent className="bg-zinc-900 border-zinc-800">
+            <SelectItem value="all">All Staff</SelectItem>
+            {data.map(d => (
+              <SelectItem key={d.user_id || d.name} value={d.user_id || d.name}>{d.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Top Performer Highlight */}
@@ -186,7 +202,7 @@ const StaffPerformance = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.map((s, idx) => (
+                {filteredData.map((s, idx) => (
                   <TableRow key={s.user_id || idx} className="border-zinc-800 hover:bg-zinc-800/50">
                     <TableCell>
                       <Badge className={idx === 0 ? 'bg-orange-500/10 text-orange-500' : idx === 1 ? 'bg-zinc-600/20 text-zinc-300' : 'bg-zinc-800 text-zinc-500'}>

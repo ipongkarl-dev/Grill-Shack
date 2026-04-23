@@ -99,8 +99,8 @@ const LoginPage = ({ onLogin }) => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-zinc-900 border-zinc-800">
-                      <SelectItem value="staff">Staff</SelectItem>
-                      <SelectItem value="owner">Owner</SelectItem>
+                      <SelectItem value="staff">User</SelectItem>
+                      <SelectItem value="owner">Admin</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

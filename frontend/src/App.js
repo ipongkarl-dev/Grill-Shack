@@ -46,7 +46,7 @@ import StockPlanner from "./pages/StockPlanner";
 import CashSystem from "./pages/CashSystem";
 import AllocationTool from "./pages/AllocationTool";
 import MarginWatch from "./pages/MarginWatch";
-import QuickMode from "./pages/QuickMode";
+import MarketMode from "./pages/MarketMode";
 import MarketsPage from "./pages/MarketsPage";
 import InventoryTracker from "./pages/InventoryTracker";
 import CashflowTracker from "./pages/CashflowTracker";
@@ -79,7 +79,7 @@ const Sidebar = ({ isOpen, setIsOpen, user, onLogout }) => {
   
   const navItems = [
     { path: "/", icon: LayoutDashboard, label: "Dashboard" },
-    { path: "/quick", icon: Zap, label: "Quick Mode" },
+    { path: "/quick", icon: Zap, label: "Market Mode" },
     { path: "/session", icon: ClipboardList, label: "Session Input" },
     { path: "/products", icon: Package, label: "Products / COGS", role: OWNER_ONLY },
     { path: "/calculator", icon: Beaker, label: "Product Calculator", role: OWNER_ONLY },
@@ -277,7 +277,7 @@ function App() {
       <Layout user={user} onLogout={handleLogout}>
         <Routes>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/quick" element={<QuickMode user={user} />} />
+          <Route path="/quick" element={<MarketMode user={user} />} />
           <Route path="/session" element={<SessionInput user={user} />} />
           <Route path="/products" element={<OwnerRoute user={user}><Products /></OwnerRoute>} />
           <Route path="/calculator" element={<OwnerRoute user={user}><ProductCalculator /></OwnerRoute>} />

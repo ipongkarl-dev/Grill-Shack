@@ -1330,10 +1330,23 @@ async def get_weekly_control():
     result = []
     for wk, wd in sorted(week_data.items()):
         net_profit = wd['gross_profit'] - wd['expenses']
+        # Format dates as MM/DD/YY + day name
+        start_fmt = wd['start_date']
+        end_fmt = wd.get('end_date', wd['start_date'])
+        try:
+            from datetime import date as dt_date2
+            ps = wd['start_date'].split('-')
+            ds = dt_date2(int(ps[0]), int(ps[1]), int(ps[2]))
+            start_fmt = ds.strftime('%m/%d/%y') + f" ({ds.strftime('%A')})"
+            pe = wd.get('end_date', wd['start_date']).split('-')
+            de = dt_date2(int(pe[0]), int(pe[1]), int(pe[2]))
+            end_fmt = de.strftime('%m/%d/%y') + f" ({de.strftime('%A')})"
+        except (ValueError, IndexError):
+            pass
         result.append({
             'week': wd['week'],
-            'start_date': wd['start_date'],
-            'end_date': wd.get('end_date', wd['start_date']),
+            'start_date': start_fmt,
+            'end_date': end_fmt,
             'sessions': wd['sessions'],
             'markets': list(wd['markets']),
             'sales': round(wd['sales'], 2),
@@ -1858,7 +1871,9 @@ def _calc_growth_series(period_data):
 
 @api_router.get("/dashboard/historical")
 async def get_historical_comparison():
-    sessions = await db.sessions.find({}, {"_id": 0}).to_list(1000)
+    from datetime import date as dt_date
+    today = dt_date.today().isoformat()
+    sessions = await db.sessions.find({"date": {"$lte": today}}, {"_id": 0}).to_list(1000)
     from datetime import date as dt_date
 
     def week_key(s):
@@ -2139,6 +2154,147 @@ async def change_password(input: PasswordChangeInput, request: Request):
     new_hash = hash_password(input.new_password)
     await db.users.update_one({"id": user["id"]}, {"$set": {"password_hash": new_hash}})
     return {"message": "Password changed successfully"}
+
+
+# -------- MARKET MODE (LIVE TRANSACTIONS) --------
+
+class MarketTransaction(BaseModel):
+    product_id: str
+    product_name: str
+    units: int
+    unit_price: float
+    total: float
+    payment_method: str  # "cash" or "eftpos"
+    timestamp: str
+
+@api_router.post("/market-mode/sessions")
+async def create_market_session(request: Request):
+    """Start a new market mode live session."""
+    user = await get_current_user(request)
+    body = await request.json()
+    session = {
+        "id": str(uuid.uuid4()),
+        "market_id": body.get("market_id", ""),
+        "market_name": body.get("market_name", ""),
+        "date": body.get("date", datetime.now(timezone.utc).strftime("%Y-%m-%d")),
+        "status": "active",
+        "transactions": [],
+        "created_by_id": user.get("id", ""),
+        "created_by_name": user.get("name", ""),
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "ended_at": None,
+    }
+    await db.market_sessions.insert_one(session)
+    session.pop('_id', None)
+    return session
+
+@api_router.get("/market-mode/sessions/active")
+async def get_active_market_session():
+    session = await db.market_sessions.find_one({"status": "active"}, {"_id": 0})
+    return session
+
+@api_router.post("/market-mode/sessions/{session_id}/transaction")
+async def add_transaction(session_id: str, request: Request):
+    """Add a transaction (single order) to the active market session."""
+    body = await request.json()
+    txn = {
+        "id": str(uuid.uuid4()),
+        "items": body.get("items", []),
+        "total": body.get("total", 0),
+        "payment_method": body.get("payment_method", "cash"),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    result = await db.market_sessions.update_one(
+        {"id": session_id, "status": "active"},
+        {"$push": {"transactions": txn}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Active session not found")
+    txn_copy = dict(txn)
+    return txn_copy
+
+@api_router.post("/market-mode/sessions/{session_id}/end")
+async def end_market_session(session_id: str, request: Request):
+    """End the active market session and create a formal session record + backup."""
+    user = await get_current_user(request)
+    ms = await db.market_sessions.find_one({"id": session_id}, {"_id": 0})
+    if not ms:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Aggregate transactions into session sales
+    products = await db.products.find({}, {"_id": 0}).to_list(100)
+    product_counts = {}
+    total_cash = 0
+    total_eftpos = 0
+    for txn in ms.get("transactions", []):
+        if txn.get("payment_method") == "cash":
+            total_cash += txn.get("total", 0)
+        else:
+            total_eftpos += txn.get("total", 0)
+        for item in txn.get("items", []):
+            pid = item.get("product_id")
+            product_counts[pid] = product_counts.get(pid, 0) + item.get("units", 0)
+
+    sales_list = [{"product_id": pid, "units_sold": units} for pid, units in product_counts.items() if units > 0]
+
+    # Create formal session
+    formal = await create_session(SessionCreate(
+        date=ms.get("date", datetime.now(timezone.utc).strftime("%Y-%m-%d")),
+        market_id=ms.get("market_id", ""),
+        market_name=ms.get("market_name", ""),
+        cash=round(total_cash, 2),
+        eftpos=round(total_eftpos, 2),
+        sales=sales_list,
+        created_by_id=user.get("id", ""),
+        created_by_name=user.get("name", ""),
+        created_by_role=user.get("role", "")
+    ))
+
+    # Mark market session as ended
+    await db.market_sessions.update_one(
+        {"id": session_id},
+        {"$set": {"status": "ended", "ended_at": datetime.now(timezone.utc).isoformat(),
+                  "formal_session_id": formal.id}}
+    )
+
+    # Auto-backup snapshot
+    snapshot = {
+        "id": str(uuid.uuid4()),
+        "label": f"Auto-backup: Market Mode {ms.get('market_name', '')} {ms.get('date', '')}",
+        "notes": f"Auto-created when Market Mode session ended. {len(ms.get('transactions', []))} transactions.",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "products": products,
+        "session_summary": {"count": 1, "total_sales": formal.calculated_sales,
+                            "total_profit": formal.gross_profit, "total_cogs": formal.total_cogs}
+    }
+    await db.data_snapshots.insert_one(snapshot)
+
+    return {"message": "Market session ended", "formal_session_id": formal.id,
+            "transactions": len(ms.get("transactions", [])),
+            "total_cash": round(total_cash, 2), "total_eftpos": round(total_eftpos, 2)}
+
+@api_router.get("/market-mode/sessions")
+async def list_market_sessions():
+    sessions = await db.market_sessions.find({}, {"_id": 0}).sort("started_at", -1).to_list(100)
+    return sessions
+
+# -------- PO EDIT --------
+
+@api_router.put("/reorder/purchase-orders/{po_id}")
+async def update_purchase_order(po_id: str, request: Request):
+    await require_owner(request)
+    body = await request.json()
+    update = {}
+    for field in ["items", "notes", "supplier_id", "supplier_name"]:
+        if field in body:
+            update[field] = body[field]
+    if "items" in update:
+        update["total_estimated"] = round(sum(i.get("estimated_cost", 0) for i in update["items"]), 2)
+    update["updated_at"] = datetime.now(timezone.utc).isoformat()
+    result = await db.purchase_orders.update_one({"id": po_id}, {"$set": update})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Purchase order not found")
+    return {"message": "Purchase order updated"}
 
 
 # -------- SEED DATA --------
