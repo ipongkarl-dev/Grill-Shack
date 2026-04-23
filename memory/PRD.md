@@ -1,39 +1,45 @@
 # Grill Shack Restaurant Management App - PRD
 
 ## Architecture
-- **Frontend**: React + Tailwind + Shadcn UI + Recharts (26 pages, 10 extracted components)
-- **Backend**: FastAPI (60+ endpoints, helper functions extracted for maintainability)
+- **Frontend**: React + Tailwind + Shadcn UI + Recharts (27 pages)
+- **Backend**: FastAPI (70+ endpoints)
 - **Database**: MongoDB
-- **Auth**: JWT with owner/staff roles + password change
+- **Auth**: JWT with admin(owner)/user(staff) roles + password change
 
-## All 26 Implemented Pages
-### Operations (5): Dashboard (Net Profit), Quick Mode, Session Input, Prep Checklist, Alerts
+## All 27 Implemented Pages
+### Operations (5): Dashboard (Net Profit, 5 KPIs), Market Mode (POS Counter), Session Input, Prep Checklist, Alerts
 ### Products (3): Products/COGS, Product Calculator, Margin Watch
-### Sales & Analytics (4): Sales Dashboard (Excel exports), Weekly Control, Market Comparison, Historical (Month/Week labels)
-### Inventory (4): Stock Planner, Inventory Tracker (Excel export), Refill Trends, Auto-Reorder (PO generation)
+### Sales & Analytics (4): Sales Dashboard (Excel exports), Weekly Control (MM/DD/YY), Market Comparison, Historical (Month/Week labels, no future dates)
+### Inventory (4): Stock Planner, Inventory Tracker (clickable COGS flow), Refill Trends, Auto-Reorder (PO print/edit/timestamp)
 ### Financial (4): Cash System, Allocation Tool, Cashflow Tracker (Excel export), Scale Planner
-### People & Config (5): Staff Performance, Supplier Directory, Markets (Preset Copy), Data Repository (snapshots/backup), Settings (password change)
-### Help (1): Manual / Walkthrough
+### People & Config (6): Staff Performance (per-staff dropdown), Supplier Directory (tile/grid/list views, email links), Markets (Preset Copy), Data Repository, Settings (password change), Manual
 
-## Extracted Components
-AllocationSettingsPanel, AllocationWidgets, CashWidgets, InventoryTable, MarginCharts, MarginTable, ProductSalesGrid, SalesWidgets, SessionSummaryPanel
+## Key Phase A+B Features
+- Dashboard KPI icons fixed (inside box beside label)
+- Weekly Control dates: MM/DD/YY + day name
+- Login roles: Admin/User instead of Owner/Staff
+- PO: printable (popup window), editable, timestamped
+- Inventory COGS flow badges clickable with hyperlinks
+- Supplier Directory: 3 view modes + email mailto links
+- Staff Performance: per-staff dropdown filter
+- Historical tab: no future dates, sorted oldest to latest
+- Market Mode: full POS counter with session indicator, product buttons, CASH/EFTPOS payment, transaction log with timestamps, auto-backup
 
-## Extracted Backend Helpers
-summarize_sessions, aggregate_market_sales, build_session_financials, compute_weekly_metrics, compute_scale_projections, process_session_sales, determine_cash_status, _period_label, _calc_growth_series, _aggregate_month_market, _month_market_to_rows, calc_sales_mix, build_checklist_items, accumulate_staff_session, aggregate_by_period
-
-## Code Quality
-- All useCallback hooks have eslint-disable with justification (module-level imports + stable setters)
-- No hardcoded secrets in test files (environment variables with fallbacks)
-- `is None` / `is not None` used correctly per PEP-8
-- ManualPage uses stable string-based keys
-- filter/map chains memoized in MarketsPage and RefillTrends
-- Backend functions under complexity thresholds via helper extraction
-
-## Test Results: 100% pass rate across iterations 7-10
+## Test Results: 100% pass rate (iterations 7-11)
 ## Auth: owner@grillshack.nz / GrillShack2026!
 
-## Upcoming (Phase 2)
-- SQLite migration (replace MongoDB)
-- Electron/Tauri desktop packaging
-- Local login simplified auth
-- Excel import fallback
+## Upcoming (Phase C)
+- Sales Dashboard ranked items, per-market Top 3, avg summary
+- Market Comparison date coverage, monthly graph
+- Allocation Tool mini forecaster
+- Scale Planner flexible schedule
+- Refill Trends clickable history
+
+## Upcoming (Phase D)
+- Dashboard Calendar (interactive, notes, alarms)
+- Alert notification bell (top-right)
+- Cashflow Tracker streamlined
+- Prep Checklist Add Product button
+- Auto-Reorder email to supplier
+- Settings lock Data Management
+- Manual update
