@@ -2221,6 +2221,73 @@ async def add_transaction(session_id: str, request: Request):
     txn_copy = dict(txn)
     return txn_copy
 
+@api_router.put("/market-mode/sessions/{session_id}/transaction/{txn_id}")
+async def update_transaction(session_id: str, txn_id: str, request: Request):
+    """Edit a transaction in the active session (change items, qty, payment)."""
+    body = await request.json()
+    ms = await db.market_sessions.find_one({"id": session_id}, {"_id": 0})
+    if not ms:
+        raise HTTPException(status_code=404, detail="Session not found")
+    txns = ms.get("transactions", [])
+    updated = False
+    for i, t in enumerate(txns):
+        if t.get("id") == txn_id:
+            if "items" in body:
+                txns[i]["items"] = body["items"]
+            if "total" in body:
+                txns[i]["total"] = body["total"]
+            if "payment_method" in body:
+                txns[i]["payment_method"] = body["payment_method"]
+            txns[i]["updated_at"] = datetime.now(timezone.utc).isoformat()
+            updated = True
+            break
+    if not updated:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    await db.market_sessions.update_one({"id": session_id}, {"$set": {"transactions": txns}})
+    return txns[i]
+
+@api_router.delete("/market-mode/sessions/{session_id}/transaction/{txn_id}")
+async def delete_transaction(session_id: str, txn_id: str, request: Request):
+    """Delete a transaction from the active session."""
+    await get_current_user(request)
+    result = await db.market_sessions.update_one(
+        {"id": session_id},
+        {"$pull": {"transactions": {"id": txn_id}}}
+    )
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    return {"message": "Transaction deleted"}
+
+@api_router.get("/export/market-transactions-excel")
+async def export_market_transactions_excel():
+    """Export all market mode transactions to Excel with date/time stamps."""
+    sessions = await db.market_sessions.find({}, {"_id": 0}).sort("started_at", -1).to_list(500)
+    headers = ["Date", "Market", "Session Status", "Txn #", "Time", "Payment", "Product", "Qty", "Unit Price", "Line Total", "Order Total"]
+    rows = []
+    for ms in sessions:
+        date = ms.get("date", "")
+        market = ms.get("market_name", "")
+        status = ms.get("status", "")
+        for ti, txn in enumerate(ms.get("transactions", []), 1):
+            ts = txn.get("timestamp", "")
+            time_str = ts[11:19] if len(ts) > 19 else ts
+            payment = txn.get("payment_method", "")
+            order_total = txn.get("total", 0)
+            for item in txn.get("items", []):
+                rows.append([
+                    date, market, status, ti, time_str, payment.upper(),
+                    item.get("product_name", ""), item.get("units", 0),
+                    item.get("unit_price", 0),
+                    round(item.get("units", 0) * item.get("unit_price", 0), 2),
+                    round(order_total, 2)
+                ])
+    wb = _make_excel_workbook("Market Transactions", headers, rows)
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                             headers={"Content-Disposition": "attachment; filename=GrillShack_Market_Transactions.xlsx"})
+
 def _aggregate_market_txns(transactions):
     """Aggregate market mode transactions into product counts and payment totals."""
     product_counts = {}
