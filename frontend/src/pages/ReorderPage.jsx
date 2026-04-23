@@ -9,6 +9,7 @@ import { Badge } from "../components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { ShoppingCart, Package, Truck, Clock, CheckCircle, XCircle, Send, FileText, Trash2, Printer, Pencil } from "lucide-react";
+import { POTable } from "../components/POTable";
 
 const fmt = (v) => new Intl.NumberFormat('en-NZ', { style: 'currency', currency: 'NZD', minimumFractionDigits: 2 }).format(v);
 
@@ -125,14 +126,82 @@ const ReorderPage = () => {
 
   const printPO = (po) => {
     const w = window.open('', '_blank');
-    w.document.write(`<html><head><title>PO ${po.po_number}</title><style>body{font-family:sans-serif;padding:40px;color:#222}table{width:100%;border-collapse:collapse;margin:20px 0}th,td{border:1px solid #ccc;padding:8px;text-align:left}th{background:#f97316;color:white}.header{display:flex;justify-content:space-between;border-bottom:2px solid #f97316;padding-bottom:15px;margin-bottom:20px}.total{font-size:18px;font-weight:bold;text-align:right;margin-top:15px}@media print{button{display:none}}</style></head><body>`);
-    w.document.write(`<div class="header"><div><h1 style="margin:0;color:#f97316">GRILL SHACK</h1><p style="margin:5px 0 0">Purchase Order</p></div><div style="text-align:right"><p><strong>${po.po_number}</strong></p><p>Date: ${po.created_at?.slice(0, 10)}</p><p>Supplier: ${po.supplier_name}</p><p>Status: ${po.status}</p></div></div>`);
-    w.document.write('<table><tr><th>Product</th><th>Qty</th><th>Unit Cost</th><th>Est. Cost</th></tr>');
-    (po.items || []).forEach(i => { w.document.write(`<tr><td>${i.product_name}</td><td>${i.qty_needed}</td><td>$${i.unit_cost?.toFixed(2)}</td><td>$${i.estimated_cost?.toFixed(2)}</td></tr>`); });
-    w.document.write(`</table><p class="total">Total: $${po.total_estimated?.toFixed(2)}</p>`);
-    if (po.notes) w.document.write(`<p><strong>Notes:</strong> ${po.notes}</p>`);
-    w.document.write('<br><button onclick="window.print()">Print</button></body></html>');
-    w.document.close();
+    const doc = w.document;
+    doc.open();
+
+    const container = doc.createElement('html');
+    const head = doc.createElement('head');
+    const title = doc.createElement('title');
+    title.textContent = `PO ${po.po_number}`;
+    const style = doc.createElement('style');
+    style.textContent = 'body{font-family:sans-serif;padding:40px;color:#222}table{width:100%;border-collapse:collapse;margin:20px 0}th,td{border:1px solid #ccc;padding:8px;text-align:left}th{background:#f97316;color:white}.header{display:flex;justify-content:space-between;border-bottom:2px solid #f97316;padding-bottom:15px;margin-bottom:20px}.total{font-size:18px;font-weight:bold;text-align:right;margin-top:15px}@media print{button{display:none}}';
+    head.appendChild(title);
+    head.appendChild(style);
+    container.appendChild(head);
+
+    const body = doc.createElement('body');
+
+    // Header
+    const header = doc.createElement('div');
+    header.className = 'header';
+    const leftDiv = doc.createElement('div');
+    const h1 = doc.createElement('h1');
+    h1.style.cssText = 'margin:0;color:#f97316';
+    h1.textContent = 'GRILL SHACK';
+    const subtitle = doc.createElement('p');
+    subtitle.style.cssText = 'margin:5px 0 0';
+    subtitle.textContent = 'Purchase Order';
+    leftDiv.appendChild(h1);
+    leftDiv.appendChild(subtitle);
+    const rightDiv = doc.createElement('div');
+    rightDiv.style.textAlign = 'right';
+    rightDiv.innerHTML = '';
+    const addInfo = (text) => { const p = doc.createElement('p'); p.textContent = text; rightDiv.appendChild(p); };
+    addInfo(po.po_number);
+    addInfo(`Date: ${po.created_at?.slice(0, 10) || ''}`);
+    addInfo(`Supplier: ${po.supplier_name || ''}`);
+    addInfo(`Status: ${po.status || ''}`);
+    header.appendChild(leftDiv);
+    header.appendChild(rightDiv);
+    body.appendChild(header);
+
+    // Table
+    const table = doc.createElement('table');
+    const thead = doc.createElement('tr');
+    ['Product', 'Qty', 'Unit Cost', 'Est. Cost'].forEach(h => { const th = doc.createElement('th'); th.textContent = h; thead.appendChild(th); });
+    table.appendChild(thead);
+    (po.items || []).forEach(item => {
+      const tr = doc.createElement('tr');
+      [item.product_name, item.qty_needed, `$${item.unit_cost?.toFixed(2)}`, `$${item.estimated_cost?.toFixed(2)}`].forEach(val => {
+        const td = doc.createElement('td'); td.textContent = val; tr.appendChild(td);
+      });
+      table.appendChild(tr);
+    });
+    body.appendChild(table);
+
+    const totalP = doc.createElement('p');
+    totalP.className = 'total';
+    totalP.textContent = `Total: $${po.total_estimated?.toFixed(2)}`;
+    body.appendChild(totalP);
+
+    if (po.notes) {
+      const notesP = doc.createElement('p');
+      const b = doc.createElement('strong');
+      b.textContent = 'Notes: ';
+      notesP.appendChild(b);
+      notesP.appendChild(doc.createTextNode(po.notes));
+      body.appendChild(notesP);
+    }
+
+    const btn = doc.createElement('button');
+    btn.textContent = 'Print';
+    btn.onclick = () => w.print();
+    body.appendChild(doc.createElement('br'));
+    body.appendChild(btn);
+
+    container.appendChild(body);
+    doc.appendChild(container);
+    doc.close();
   };
 
   if (loading) return <div className="h-96 bg-zinc-900 rounded-xl animate-pulse" />;
@@ -263,90 +332,7 @@ const ReorderPage = () => {
       </Card>
 
       {/* Purchase Orders */}
-      <Card className="bg-zinc-900 border-zinc-800">
-        <CardHeader>
-          <CardTitle className="text-lg font-heading text-zinc-50 flex items-center">
-            <FileText className="w-5 h-5 mr-2 text-orange-500" /> Purchase Orders
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-zinc-800 hover:bg-transparent">
-                  <TableHead className="text-zinc-400">PO #</TableHead>
-                  <TableHead className="text-zinc-400">Supplier</TableHead>
-                  <TableHead className="text-zinc-400 text-right">Items</TableHead>
-                  <TableHead className="text-zinc-400 text-right">Total</TableHead>
-                  <TableHead className="text-zinc-400 text-center">Status</TableHead>
-                  <TableHead className="text-zinc-400">Created</TableHead>
-                  <TableHead className="text-zinc-400 text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {orders.length === 0 ? (
-                  <TableRow className="border-zinc-800">
-                    <TableCell colSpan={7} className="text-center py-12 text-zinc-500">
-                      <FileText className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                      <p>No purchase orders yet</p>
-                    </TableCell>
-                  </TableRow>
-                ) : orders.map(o => {
-                  const style = STATUS_STYLES[o.status] || STATUS_STYLES.pending;
-                  const StatusIcon = style.icon;
-                  return (
-                    <TableRow key={o.id} className="border-zinc-800 hover:bg-zinc-800/50">
-                      <TableCell className="font-mono text-zinc-200">{o.po_number}</TableCell>
-                      <TableCell className="text-zinc-300">{o.supplier_name}</TableCell>
-                      <TableCell className="text-right font-mono text-zinc-300">{o.items?.length || 0}</TableCell>
-                      <TableCell className="text-right font-mono text-orange-500">{fmt(o.total_estimated)}</TableCell>
-                      <TableCell className="text-center">
-                        <Badge className={style.bg}>
-                          <StatusIcon className="w-3 h-3 mr-1" /> {o.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-zinc-500 text-xs">
-                        <div>{o.created_at?.slice(0, 10)}</div>
-                        <div className="text-zinc-600">{o.created_at?.slice(11, 16)}</div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button size="sm" variant="ghost" onClick={() => printPO(o)} className="text-zinc-400 hover:text-zinc-200" data-testid={`print-po-${o.po_number}`}>
-                            <Printer className="w-3.5 h-3.5" />
-                          </Button>
-                          {o.status === "pending" && (
-                            <>
-                              <Button size="sm" variant="ghost" onClick={() => openEditPO(o)} className="text-zinc-400 hover:text-zinc-200">
-                                <Pencil className="w-3.5 h-3.5" />
-                              </Button>
-                              <Button size="sm" variant="ghost" onClick={() => updateStatus(o.id, "ordered")}
-                                className="text-blue-400 hover:text-blue-300 text-xs" data-testid={`mark-ordered-${o.po_number}`}>
-                                Ordered
-                              </Button>
-                            </>
-                          )}
-                          {o.status === "ordered" && (
-                            <Button size="sm" variant="ghost" onClick={() => updateStatus(o.id, "received")}
-                              className="text-emerald-400 hover:text-emerald-300 text-xs" data-testid={`mark-received-${o.po_number}`}>
-                              Received
-                            </Button>
-                          )}
-                          {(o.status === "pending" || o.status === "cancelled") && (
-                            <Button size="sm" variant="ghost" onClick={() => deletePO(o.id)}
-                              className="text-zinc-400 hover:text-red-500">
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+      <POTable orders={orders} onPrint={printPO} onEdit={openEditPO} onUpdateStatus={updateStatus} onDelete={deletePO} />
 
       {/* Create PO Dialog */}
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>

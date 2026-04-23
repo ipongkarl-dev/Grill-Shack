@@ -1290,9 +1290,19 @@ async def get_market_comparison():
 
 # -------- WEEKLY CONTROL --------
 
-@api_router.get("/dashboard/weekly-control")
-async def get_weekly_control():
-    sessions = await db.sessions.find({}, {"_id": 0}).sort("date", 1).to_list(1000)
+def _format_date_display(date_str):
+    """Format YYYY-MM-DD to MM/DD/YY (DayName)."""
+    try:
+        from datetime import date as dt_date_fmt
+        parts = date_str.split('-')
+        d = dt_date_fmt(int(parts[0]), int(parts[1]), int(parts[2]))
+        return d.strftime('%m/%d/%y') + f" ({d.strftime('%A')})"
+    except (ValueError, IndexError, TypeError):
+        return date_str
+
+
+def _accumulate_weekly(sessions):
+    """Group sessions into week buckets with aggregated totals."""
     from datetime import date as dt_date
     week_data = {}
     for s in sessions:
@@ -1306,7 +1316,6 @@ async def get_weekly_control():
             week_key = f"{iso[0]}-W{iso[1]:02d}"
         except (ValueError, TypeError, IndexError):
             continue
-
         if week_key not in week_data:
             week_data[week_key] = {
                 'week': week_key, 'start_date': date_str,
@@ -1326,51 +1335,41 @@ async def get_weekly_control():
         wd['total_units'] += s.get('total_units', 0)
         wd['markets'].add(s.get('market_name', ''))
         wd['end_date'] = date_str
+    return week_data
 
-    result = []
-    for wk, wd in sorted(week_data.items()):
-        net_profit = wd['gross_profit'] - wd['expenses']
-        # Format dates as MM/DD/YY + day name
-        start_fmt = wd['start_date']
-        end_fmt = wd.get('end_date', wd['start_date'])
-        try:
-            from datetime import date as dt_date2
-            ps = wd['start_date'].split('-')
-            ds = dt_date2(int(ps[0]), int(ps[1]), int(ps[2]))
-            start_fmt = ds.strftime('%m/%d/%y') + f" ({ds.strftime('%A')})"
-            pe = wd.get('end_date', wd['start_date']).split('-')
-            de = dt_date2(int(pe[0]), int(pe[1]), int(pe[2]))
-            end_fmt = de.strftime('%m/%d/%y') + f" ({de.strftime('%A')})"
-        except (ValueError, IndexError):
-            pass
-        result.append({
-            'week': wd['week'],
-            'start_date': start_fmt,
-            'end_date': end_fmt,
-            'sessions': wd['sessions'],
-            'markets': list(wd['markets']),
-            'sales': round(wd['sales'], 2),
-            'cash': round(wd['cash'], 2),
-            'eftpos': round(wd['eftpos'], 2),
-            'total_collected': round(wd['total_collected'], 2),
-            'total_cogs': round(wd['total_cogs'], 2),
-            'gross_profit': round(wd['gross_profit'], 2),
-            'expenses': round(wd['expenses'], 2),
-            'net_profit': round(net_profit, 2),
-            'total_units': wd['total_units'],
-            'cogs_percent': round((wd['total_cogs'] / wd['sales'] * 100) if wd['sales'] > 0 else 0, 2)
-        })
-    return result
+
+def _format_week_row(wd):
+    """Format a single week data dict into the API response row."""
+    net_profit = wd['gross_profit'] - wd['expenses']
+    return {
+        'week': wd['week'],
+        'start_date': _format_date_display(wd['start_date']),
+        'end_date': _format_date_display(wd.get('end_date', wd['start_date'])),
+        'sessions': wd['sessions'],
+        'markets': list(wd['markets']),
+        'sales': round(wd['sales'], 2),
+        'cash': round(wd['cash'], 2),
+        'eftpos': round(wd['eftpos'], 2),
+        'total_collected': round(wd['total_collected'], 2),
+        'total_cogs': round(wd['total_cogs'], 2),
+        'gross_profit': round(wd['gross_profit'], 2),
+        'expenses': round(wd['expenses'], 2),
+        'net_profit': round(net_profit, 2),
+        'total_units': wd['total_units'],
+        'cogs_percent': round((wd['total_cogs'] / wd['sales'] * 100) if wd['sales'] > 0 else 0, 2)
+    }
+
+
+@api_router.get("/dashboard/weekly-control")
+async def get_weekly_control():
+    sessions = await db.sessions.find({}, {"_id": 0}).sort("date", 1).to_list(1000)
+    week_data = _accumulate_weekly(sessions)
+    return [_format_week_row(wd) for _, wd in sorted(week_data.items())]
 
 # -------- REFILL COST TRENDS --------
 
-@api_router.get("/dashboard/refill-trends")
-async def get_refill_trends():
-    products = await db.products.find({}, {"_id": 0}).to_list(100)
-    inventory = await db.inventory.find({}, {"_id": 0}).sort("date", 1).to_list(1000)
-    sessions = await db.sessions.find({}, {"_id": 0}).to_list(1000)
-
-    # Aggregate inventory costs over time per product
+def _build_refill_product_trends(products, inventory, sessions):
+    """Build per-product refill/cost trend data."""
     product_trends = {}
     for p in products:
         product_trends[p['id']] = {
@@ -1379,43 +1378,48 @@ async def get_refill_trends():
             'cost_history': [], 'total_spent': 0, 'total_units_bought': 0,
             'lifetime_units_sold': 0, 'lifetime_revenue': 0
         }
-
     for entry in inventory:
         pid = entry.get('product_id')
         if pid in product_trends:
             cost = entry.get('cost_per_unit', 0)
             qty = entry.get('total_added', 0)
             product_trends[pid]['cost_history'].append({
-                'date': entry.get('date', ''),
-                'cost_per_unit': cost,
-                'units_added': qty,
-                'supplier': entry.get('supplier', '')
+                'date': entry.get('date', ''), 'cost_per_unit': cost,
+                'units_added': qty, 'supplier': entry.get('supplier', '')
             })
             product_trends[pid]['total_spent'] += cost * qty
             product_trends[pid]['total_units_bought'] += qty
-
     for s in sessions:
         for sale in s.get('sales', []):
             pid = sale.get('product_id')
             if pid in product_trends:
                 product_trends[pid]['lifetime_units_sold'] += sale.get('units_sold', 0)
                 product_trends[pid]['lifetime_revenue'] += sale.get('sales_value', 0)
+    return product_trends
 
+
+def _finalize_refill_result(product_trends):
+    """Compute averages and trends, return sorted result."""
     result = []
-    for pid, pt in product_trends.items():
+    for pt in product_trends.values():
         avg_cost = (pt['total_spent'] / pt['total_units_bought']) if pt['total_units_bought'] > 0 else pt['current_cost']
         cost_trend = 0
         if len(pt['cost_history']) >= 2:
             first = pt['cost_history'][0]['cost_per_unit']
             last = pt['cost_history'][-1]['cost_per_unit']
             cost_trend = ((last - first) / first * 100) if first > 0 else 0
-        result.append({
-            **pt,
-            'avg_cost': round(avg_cost, 4),
-            'cost_trend_pct': round(cost_trend, 1)
-        })
+        result.append({**pt, 'avg_cost': round(avg_cost, 4), 'cost_trend_pct': round(cost_trend, 1)})
     result.sort(key=lambda x: x['lifetime_revenue'], reverse=True)
     return result
+
+
+@api_router.get("/dashboard/refill-trends")
+async def get_refill_trends():
+    products = await db.products.find({}, {"_id": 0}).to_list(100)
+    inventory = await db.inventory.find({}, {"_id": 0}).sort("date", 1).to_list(1000)
+    sessions = await db.sessions.find({}, {"_id": 0}).to_list(1000)
+    product_trends = _build_refill_product_trends(products, inventory, sessions)
+    return _finalize_refill_result(product_trends)
 
 # -------- SCALE PLANNER --------
 
@@ -2213,6 +2217,37 @@ async def add_transaction(session_id: str, request: Request):
     txn_copy = dict(txn)
     return txn_copy
 
+def _aggregate_market_txns(transactions):
+    """Aggregate market mode transactions into product counts and payment totals."""
+    product_counts = {}
+    total_cash = 0
+    total_eftpos = 0
+    for txn in transactions:
+        if txn.get("payment_method") == "cash":
+            total_cash += txn.get("total", 0)
+        else:
+            total_eftpos += txn.get("total", 0)
+        for item in txn.get("items", []):
+            pid = item.get("product_id")
+            product_counts[pid] = product_counts.get(pid, 0) + item.get("units", 0)
+    sales_list = [{"product_id": pid, "units_sold": units} for pid, units in product_counts.items() if units > 0]
+    return sales_list, round(total_cash, 2), round(total_eftpos, 2)
+
+
+async def _create_auto_backup(products, formal, market_name, date_str, txn_count):
+    """Create an auto-backup snapshot when Market Mode ends."""
+    snapshot = {
+        "id": str(uuid.uuid4()),
+        "label": f"Auto-backup: Market Mode {market_name} {date_str}",
+        "notes": f"Auto-created when Market Mode session ended. {txn_count} transactions.",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "products": products,
+        "session_summary": {"count": 1, "total_sales": formal.calculated_sales,
+                            "total_profit": formal.gross_profit, "total_cogs": formal.total_cogs}
+    }
+    await db.data_snapshots.insert_one(snapshot)
+
+
 @api_router.post("/market-mode/sessions/{session_id}/end")
 async def end_market_session(session_id: str, request: Request):
     """End the active market session and create a formal session record + backup."""
@@ -2221,57 +2256,29 @@ async def end_market_session(session_id: str, request: Request):
     if not ms:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    # Aggregate transactions into session sales
     products = await db.products.find({}, {"_id": 0}).to_list(100)
-    product_counts = {}
-    total_cash = 0
-    total_eftpos = 0
-    for txn in ms.get("transactions", []):
-        if txn.get("payment_method") == "cash":
-            total_cash += txn.get("total", 0)
-        else:
-            total_eftpos += txn.get("total", 0)
-        for item in txn.get("items", []):
-            pid = item.get("product_id")
-            product_counts[pid] = product_counts.get(pid, 0) + item.get("units", 0)
+    txns = ms.get("transactions", [])
+    sales_list, total_cash, total_eftpos = _aggregate_market_txns(txns)
 
-    sales_list = [{"product_id": pid, "units_sold": units} for pid, units in product_counts.items() if units > 0]
-
-    # Create formal session
     formal = await create_session(SessionCreate(
         date=ms.get("date", datetime.now(timezone.utc).strftime("%Y-%m-%d")),
         market_id=ms.get("market_id", ""),
         market_name=ms.get("market_name", ""),
-        cash=round(total_cash, 2),
-        eftpos=round(total_eftpos, 2),
-        sales=sales_list,
+        cash=total_cash, eftpos=total_eftpos, sales=sales_list,
         created_by_id=user.get("id", ""),
         created_by_name=user.get("name", ""),
         created_by_role=user.get("role", "")
     ))
 
-    # Mark market session as ended
     await db.market_sessions.update_one(
         {"id": session_id},
         {"$set": {"status": "ended", "ended_at": datetime.now(timezone.utc).isoformat(),
                   "formal_session_id": formal.id}}
     )
-
-    # Auto-backup snapshot
-    snapshot = {
-        "id": str(uuid.uuid4()),
-        "label": f"Auto-backup: Market Mode {ms.get('market_name', '')} {ms.get('date', '')}",
-        "notes": f"Auto-created when Market Mode session ended. {len(ms.get('transactions', []))} transactions.",
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "products": products,
-        "session_summary": {"count": 1, "total_sales": formal.calculated_sales,
-                            "total_profit": formal.gross_profit, "total_cogs": formal.total_cogs}
-    }
-    await db.data_snapshots.insert_one(snapshot)
+    await _create_auto_backup(products, formal, ms.get('market_name', ''), ms.get('date', ''), len(txns))
 
     return {"message": "Market session ended", "formal_session_id": formal.id,
-            "transactions": len(ms.get("transactions", [])),
-            "total_cash": round(total_cash, 2), "total_eftpos": round(total_eftpos, 2)}
+            "transactions": len(txns), "total_cash": total_cash, "total_eftpos": total_eftpos}
 
 @api_router.get("/market-mode/sessions")
 async def list_market_sessions():

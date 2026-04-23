@@ -355,7 +355,7 @@ class TestPasswordChange:
     def test_change_password_success(self, owner_session):
         """POST /api/auth/change-password changes password successfully"""
         # Change to new password
-        new_password = "NewGrillShack2026!"
+        new_password = os.environ.get("TEST_NEW_PASSWORD", "NewGrillShack2026!")
         response = owner_session.post(f"{BASE_URL}/api/auth/change-password", json={
             "current_password": OWNER_PASSWORD,
             "new_password": new_password
