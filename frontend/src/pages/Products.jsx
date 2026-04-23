@@ -402,9 +402,9 @@ const Products = () => {
                         className={
                           product.cogs_percent > 35 
                             ? "bg-red-500/10 text-red-500" 
-                            : product.cogs_percent > 25
-                            ? "bg-amber-500/10 text-amber-500"
-                            : "bg-emerald-500/10 text-emerald-500"
+                            : (product.cogs_percent > 25
+                              ? "bg-amber-500/10 text-amber-500"
+                              : "bg-emerald-500/10 text-emerald-500")
                         }
                       >
                         {product.cogs_percent?.toFixed(1)}%

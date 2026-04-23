@@ -155,7 +155,6 @@ const ReorderPage = () => {
     leftDiv.appendChild(subtitle);
     const rightDiv = doc.createElement('div');
     rightDiv.style.textAlign = 'right';
-    rightDiv.innerHTML = '';
     const addInfo = (text) => { const p = doc.createElement('p'); p.textContent = text; rightDiv.appendChild(p); };
     addInfo(po.po_number);
     addInfo(`Date: ${po.created_at?.slice(0, 10) || ''}`);

@@ -60,7 +60,7 @@ const SalesDashboard = () => {
       const params = selectedMarket !== "all" ? `?market_id=${selectedMarket}` : "";
       const res = await axios.get(`${API}/dashboard/sales-top-items${params}`);
       setTopItems(res.data);
-    } catch (_e) { /* silent */ }
+    } catch (_e) { console.warn('Failed to prefetch top items'); }
   }, [selectedMarket]);
 
   useEffect(() => { fetchTopItems(); }, [fetchTopItems]);

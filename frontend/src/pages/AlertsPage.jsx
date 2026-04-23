@@ -111,7 +111,8 @@ const AlertsPage = () => {
         <div className="space-y-3">
           {visibleAlerts.map(alert => {
             const style = getSeverityStyle(alert.severity);
-            const linkTo = alert.type === 'stock' ? '/inventory' : alert.type === 'cash' ? '/cash' : '/products';
+            const linkTo = alert.type === 'stock' ? '/inventory' : (alert.type === 'cash' ? '/cash' : '/products');
+            const actionText = alert.type === 'stock' ? 'restock' : (alert.type === 'cash' ? 'reconcile' : 'adjust pricing');
             return (
               <div key={alert.id} className={`bg-zinc-900 border ${style.card} rounded-lg transition-all duration-200 hover:-translate-y-0.5`}>
                 <Link to={linkTo} data-testid={`alert-link-${alert.id}`}>
@@ -126,7 +127,7 @@ const AlertsPage = () => {
                           <Badge className={style.badge}>{alert.severity.charAt(0).toUpperCase() + alert.severity.slice(1)}</Badge>
                         </div>
                         <p className="text-sm text-zinc-400 mt-1">{alert.message}</p>
-                        <p className="text-xs text-orange-500 mt-1">Click to {alert.type === 'stock' ? 'restock' : alert.type === 'cash' ? 'reconcile' : 'adjust pricing'}</p>
+                        <p className="text-xs text-orange-500 mt-1">Click to {actionText}</p>
                       </div>
                     </div>
                   </div>

@@ -2355,31 +2355,42 @@ async def get_dismissed_alerts():
 
 # -------- SALES TOP ITEMS PER MARKET --------
 
-@api_router.get("/dashboard/sales-top-items")
-async def get_sales_top_items(market_id: Optional[str] = None):
-    query = {}
-    if market_id:
-        query["market_id"] = market_id
-    sessions = await db.sessions.find(query, {"_id": 0}).to_list(5000)
-    products = await db.products.find({}, {"_id": 0}).to_list(100)
-    product_map = {p['id']: p for p in products}
+def _tally_product_sales(sessions, product_map):
+    """Aggregate product sales across sessions."""
     product_totals = {}
     for s in sessions:
         for sale in s.get('sales', []):
             pid = sale.get('product_id')
             if pid not in product_totals:
                 p = product_map.get(pid, {})
-                product_totals[pid] = {'product_id': pid, 'name': p.get('name', pid), 'code': p.get('code', ''),
-                                        'units': 0, 'revenue': 0, 'price': p.get('price', 0)}
+                product_totals[pid] = {'product_id': pid, 'name': p.get('name', pid),
+                                        'code': p.get('code', ''), 'units': 0,
+                                        'revenue': 0, 'price': p.get('price', 0)}
             product_totals[pid]['units'] += sale.get('units_sold', 0)
             product_totals[pid]['revenue'] += sale.get('sales_value', 0)
+    return product_totals
+
+
+def _rank_products(product_totals):
+    """Rank products and categorize into top/bottom/needs_push."""
     ranked = sorted(product_totals.values(), key=lambda x: x['revenue'], reverse=True)
     for i, item in enumerate(ranked):
         item['rank'] = i + 1
     top3 = ranked[:3]
     bottom = ranked[-1] if ranked else None
-    needs_push = [r for r in ranked if r['units'] > 0 and r['revenue'] < (ranked[0]['revenue'] * 0.3)] if ranked else []
-    return {"ranked": ranked, "top3": top3, "bottom": bottom, "needs_push": needs_push[:3]}
+    threshold = ranked[0]['revenue'] * 0.3 if ranked else 0
+    needs_push = [r for r in ranked if r['units'] > 0 and r['revenue'] < threshold][:3]
+    return {"ranked": ranked, "top3": top3, "bottom": bottom, "needs_push": needs_push}
+
+
+@api_router.get("/dashboard/sales-top-items")
+async def get_sales_top_items(market_id: Optional[str] = None):
+    query = {"market_id": market_id} if market_id else {}
+    sessions = await db.sessions.find(query, {"_id": 0}).to_list(5000)
+    products = await db.products.find({}, {"_id": 0}).to_list(100)
+    product_map = {p['id']: p for p in products}
+    product_totals = _tally_product_sales(sessions, product_map)
+    return _rank_products(product_totals)
 
 
 # -------- SEED DATA --------

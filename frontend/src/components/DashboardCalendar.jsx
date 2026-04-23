@@ -21,7 +21,7 @@ export const DashboardCalendar = () => {
     try {
       const res = await axios.get(`${API}/calendar/events`);
       setEvents(res.data);
-    } catch (_e) { /* silent */ }
+    } catch (_e) { console.warn('Failed to load calendar events'); }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- only module-level imports (API, axios) and stable state setters used
   }, []);
 
@@ -67,7 +67,9 @@ export const DashboardCalendar = () => {
               <div key={e.id} className="flex items-center justify-between p-2 rounded-lg bg-zinc-800/50 group">
                 <div className="flex items-center gap-3 min-w-0">
                   <Badge className={`text-xs ${TYPE_COLORS[e.event_type] || TYPE_COLORS.note}`}>
-                    {e.event_type === 'market' ? <MapPin className="w-3 h-3 mr-1" /> : e.event_type === 'event' ? <Bell className="w-3 h-3 mr-1" /> : <FileText className="w-3 h-3 mr-1" />}
+                    {e.event_type === 'market' && <MapPin className="w-3 h-3 mr-1" />}
+                    {e.event_type === 'event' && <Bell className="w-3 h-3 mr-1" />}
+                    {e.event_type !== 'market' && e.event_type !== 'event' && <FileText className="w-3 h-3 mr-1" />}
                     {e.date?.slice(5).replace('-', '/')}
                   </Badge>
                   <div className="min-w-0">

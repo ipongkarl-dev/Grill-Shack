@@ -1,41 +1,10 @@
 import { useEffect, useState } from "react";
-import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { Toaster } from "./components/ui/sonner";
 import { toast } from "sonner";
-import { 
-  LayoutDashboard, 
-  ClipboardList, 
-  Package, 
-  BarChart3, 
-  Calculator, 
-  Warehouse, 
-  DollarSign,
-  TrendingUp,
-  Flame,
-  Menu,
-  X,
-  Zap,
-  MapPin,
-  Boxes,
-  PiggyBank,
-  Beaker,
-  GitCompare,
-  CalendarRange,
-  Receipt,
-  Rocket,
-  ClipboardCheck,
-  Bell,
-  Truck,
-  History,
-  LogOut,
-  User,
-  UsersRound,
-  ShoppingCart,
-  Database,
-  Settings,
-  BookOpen
-} from "lucide-react";
+import { Menu, Bell } from "lucide-react";
+import { Sidebar } from "./components/AppSidebar";
 
 // Pages
 import Dashboard from "./pages/Dashboard";
@@ -71,115 +40,7 @@ export const API = `${BACKEND_URL}/api`;
 
 const LOGO_URL = "https://customer-assets.emergentagent.com/job_kitchen-analytics-4/artifacts/rahsf0cf_Vector%20No%20Background.png";
 
-// Sidebar Navigation
-const OWNER_ONLY = "owner";
-
-const Sidebar = ({ isOpen, setIsOpen, user, onLogout }) => {
-  const location = useLocation();
-  
-  const navItems = [
-    { path: "/", icon: LayoutDashboard, label: "Dashboard" },
-    { path: "/quick", icon: Zap, label: "Market Mode" },
-    { path: "/session", icon: ClipboardList, label: "Session Input" },
-    { path: "/products", icon: Package, label: "Products / COGS", role: OWNER_ONLY },
-    { path: "/calculator", icon: Beaker, label: "Product Calculator", role: OWNER_ONLY },
-    { path: "/sales", icon: BarChart3, label: "Sales Dashboard" },
-    { path: "/weekly", icon: CalendarRange, label: "Weekly Control" },
-    { path: "/compare", icon: GitCompare, label: "Market Comparison" },
-    { path: "/stock", icon: Warehouse, label: "Stock Planner" },
-    { path: "/inventory", icon: Boxes, label: "Inventory Tracker" },
-    { path: "/refill", icon: Receipt, label: "Refill Trends" },
-    { path: "/cash", icon: DollarSign, label: "Cash System" },
-    { path: "/allocation", icon: Calculator, label: "Allocation Tool", role: OWNER_ONLY },
-    { path: "/cashflow", icon: PiggyBank, label: "Cashflow Tracker", role: OWNER_ONLY },
-    { path: "/scale", icon: Rocket, label: "Scale Planner", role: OWNER_ONLY },
-    { path: "/prep", icon: ClipboardCheck, label: "Prep Checklist" },
-    { path: "/alerts", icon: Bell, label: "Alerts" },
-    { path: "/margin", icon: TrendingUp, label: "Margin Watch", role: OWNER_ONLY },
-    { path: "/historical", icon: History, label: "Historical" },
-    { path: "/staff", icon: UsersRound, label: "Staff Performance", role: OWNER_ONLY },
-    { path: "/suppliers", icon: Truck, label: "Suppliers", role: OWNER_ONLY },
-    { path: "/reorder", icon: ShoppingCart, label: "Auto-Reorder", role: OWNER_ONLY },
-    { path: "/markets", icon: MapPin, label: "Markets", role: OWNER_ONLY },
-    { path: "/data", icon: Database, label: "Data Repository", role: OWNER_ONLY },
-    { path: "/settings", icon: Settings, label: "Settings" },
-    { path: "/manual", icon: BookOpen, label: "Manual" },
-  ];
-
-  const filteredNavItems = navItems.filter(item => !item.role || user?.role === item.role);
-
-  return (
-    <>
-      {/* Mobile overlay */}
-      {isOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setIsOpen(false)}
-        />
-      )}
-      
-      {/* Sidebar */}
-      <aside className={`
-        fixed top-0 left-0 h-full w-64 bg-zinc-950 border-r border-zinc-800 z-50
-        transform transition-transform duration-200 ease-in-out
-        lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}
-      `}>
-        {/* Logo */}
-        <div className="h-20 flex items-center justify-center px-4 border-b border-zinc-800">
-          <img src={LOGO_URL} alt="Grill Shack" className="h-16 w-auto object-contain" />
-        </div>
-        
-        {/* Navigation */}
-        <nav className="p-4 space-y-1 overflow-y-auto max-h-[calc(100vh-130px)]">
-          {filteredNavItems.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              onClick={() => setIsOpen(false)}
-              className={({ isActive }) => `
-                flex items-center px-4 py-3 rounded-lg text-sm font-medium
-                transition-all duration-200
-                ${isActive 
-                  ? 'bg-orange-500/10 text-orange-500 border border-orange-500/20' 
-                  : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
-                }
-              `}
-              data-testid={`nav-${item.path.replace('/', '') || 'dashboard'}`}
-            >
-              <item.icon className="w-5 h-5 mr-3" />
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
-        
-        {/* Footer */}
-        <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-zinc-800">
-          {user && (
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="w-7 h-7 rounded-full bg-orange-500/10 flex items-center justify-center flex-shrink-0">
-                  <User className="w-4 h-4 text-orange-500" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs text-zinc-300 truncate">{user.name || user.email}</p>
-                  <p className="text-xs text-zinc-600 capitalize">{user.role}</p>
-                </div>
-              </div>
-              <button onClick={onLogout} className="p-1.5 hover:bg-zinc-800 rounded-lg" data-testid="logout-btn">
-                <LogOut className="w-4 h-4 text-zinc-500" />
-              </button>
-            </div>
-          )}
-          <div className="text-xs text-zinc-600 text-center">
-            Grill Shack v2.0
-          </div>
-        </div>
-      </aside>
-    </>
-  );
-};
-
-// Main Layout
+// Alert Bell
 const AlertBell = () => {
   const [count, setCount] = useState(0);
   const navigate = useNavigate();
@@ -194,14 +55,12 @@ const AlertBell = () => {
   );
 };
 
+// Layout
 const Layout = ({ children, user, onLogout }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  
   return (
     <div className="min-h-screen bg-zinc-950">
       <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} user={user} onLogout={onLogout} />
-      
-      {/* Mobile header */}
       <header className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-zinc-950 border-b border-zinc-800 z-30 flex items-center justify-between px-4">
         <div className="flex items-center">
           <button onClick={() => setSidebarOpen(true)} className="p-2 hover:bg-zinc-800 rounded-lg" data-testid="mobile-menu-btn">
@@ -211,8 +70,6 @@ const Layout = ({ children, user, onLogout }) => {
         </div>
         {user && <AlertBell />}
       </header>
-      
-      {/* Main content */}
       <main className="lg:ml-64 min-h-screen pt-16 lg:pt-0">
         {user && (
           <div className="hidden lg:flex items-center justify-end p-3 border-b border-zinc-800/50">
@@ -227,69 +84,50 @@ const Layout = ({ children, user, onLogout }) => {
   );
 };
 
-// Route guard for owner-only pages
+// Owner route guard
 const OwnerRoute = ({ user, children }) => {
-  if (user?.role !== 'owner') {
-    return <Navigate to="/" replace />;
-  }
+  if (user?.role !== 'owner') return <Navigate to="/" replace />;
   return children;
 };
 
+// App
 function App() {
-  const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const initApp = async () => {
-      try {
-        const meRes = await axios.get(`${API}/auth/me`, { withCredentials: true }).catch(() => null);
-        if (meRes?.data?.id) setUser(meRes.data);
-        const response = await axios.get(`${API}/products`);
-        if (response.data.length === 0) {
-          await axios.post(`${API}/seed`);
-          toast.success("Initial data loaded from Excel!");
-        }
-      } catch (_err) {
-        toast.error("Failed to initialize app");
-      } finally {
-        setLoading(false);
-      }
-    };
-    initApp();
+    axios.get(`${API}/auth/me`, { withCredentials: true })
+      .then(r => { setUser(r.data); })
+      .catch(() => { setUser(null); })
+      .finally(() => setLoading(false));
   }, []);
 
   const handleLogin = (userData) => {
     setUser(userData);
-    if (userData.token) axios.defaults.headers.common['Authorization'] = `Bearer ${userData.token}`;
+    axios.defaults.headers.common['Authorization'] = `Bearer ${userData.token}`;
   };
 
   const handleLogout = async () => {
     try { await axios.post(`${API}/auth/logout`, {}, { withCredentials: true }); } catch (err) { console.error('Logout error:', err); }
-    setUser(null);
     delete axios.defaults.headers.common['Authorization'];
-    toast.success("Logged out");
+    setUser(null);
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-        <Flame className="w-16 h-16 text-orange-500 animate-pulse" />
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+      <div className="w-16 h-16 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
 
-  if (!user) {
-    return (
-      <>
-        <Toaster position="top-right" toastOptions={{ style: { background: 'hsl(0 0% 9%)', border: '1px solid hsl(0 0% 14.9%)', color: 'hsl(0 0% 98%)' } }} />
-        <LoginPage onLogin={handleLogin} />
-      </>
-    );
-  }
+  if (!user) return (
+    <BrowserRouter>
+      <LoginPage onLogin={handleLogin} />
+      <Toaster theme="dark" position="top-right" />
+    </BrowserRouter>
+  );
 
   return (
     <BrowserRouter>
-      <Toaster position="top-right" toastOptions={{ style: { background: 'hsl(0 0% 9%)', border: '1px solid hsl(0 0% 14.9%)', color: 'hsl(0 0% 98%)' } }} />
       <Layout user={user} onLogout={handleLogout}>
         <Routes>
           <Route path="/" element={<Dashboard />} />
@@ -320,6 +158,7 @@ function App() {
           <Route path="/manual" element={<ManualPage />} />
         </Routes>
       </Layout>
+      <Toaster theme="dark" position="top-right" />
     </BrowserRouter>
   );
 }
