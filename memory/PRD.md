@@ -1,28 +1,27 @@
-# Grill Shack Restaurant Management App - PRD v3.0
+# Grill Shack Restaurant Management App - PRD v3.1
 
 ## Architecture
-- **Frontend**: React + Tailwind + Shadcn/UI + Recharts (27 pages, 18 components)
-- **Backend**: FastAPI (80+ endpoints, 30+ extracted helpers)
-- **Database**: MongoDB
-- **Auth**: JWT with Admin/User roles + password change
+- **Frontend**: React + Tailwind + Shadcn/UI + Recharts (27 pages, 19 components)
+- **Backend**: FastAPI (85+ endpoints, 30+ helpers)
+- **Database**: MongoDB | **Auth**: JWT Admin/User + password change
 
-## Code Quality
-- App.js: 166 lines (from 328) — Sidebar extracted to AppSidebar.jsx
-- XSS: printPO uses DOM APIs only (no innerHTML/document.write)
-- Secrets: all test files use os.environ.get() with fallbacks
-- Hooks: eslint-disable with justifications on stable deps
-- Ternaries: all nested ternaries replaced with explicit conditionals
-- Empty catch: all replaced with console.warn or toast
-- Backend: 30+ extracted helper functions, all under complexity thresholds
+## Market Mode Features (POS Counter)
+- **Training Mode**: Products always clickable without session for staff practice
+- **Live Session**: Start/End with green LIVE indicator, auto-backup on end
+- **Pause/Idle**: Amber PAUSED indicator, Save & End locked, Resume to continue
+- **Transaction Edit**: Edit qty, payment method, remove items per transaction
+- **Transaction Delete**: Remove transactions with confirmation
+- **Excel Export**: All transactions with date/time/market/payment in columns
+- **CASH/EFTPOS buttons**: One-tap payment recording per order
 
-## Test Results: 100% pass rate across iterations 7-14
+## Test Results: 100% pass rate across iterations 7-15
 ## Auth: owner@grillshack.nz / GrillShack2026!
 
 ## Remaining Backlog
-- Session Input cross-match with Market Mode (discrepancy highlighting)
-- Cash System reconciliation with Market Mode
+- Session Input cross-match with Market Mode
+- Cash System reconciliation
 - Auto-Reorder email to supplier
-- Settings lock Data Management behind admin password
-- Prep Checklist "Add Product" button
+- Settings lock Data Management
+- Prep Checklist "Add Product"
 - Cashflow Tracker streamlining
-- SQLite migration + Electron desktop packaging
+- SQLite migration + Electron packaging
