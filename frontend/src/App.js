@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { Toaster } from "./components/ui/sonner";
 import { toast } from "sonner";
@@ -180,6 +180,20 @@ const Sidebar = ({ isOpen, setIsOpen, user, onLogout }) => {
 };
 
 // Main Layout
+const AlertBell = () => {
+  const [count, setCount] = useState(0);
+  const navigate = useNavigate();
+  useEffect(() => {
+    axios.get(`${API}/alerts`).then(r => setCount(r.data.length)).catch(() => {});
+  }, []);
+  return (
+    <button onClick={() => navigate('/alerts')} className="relative p-2 hover:bg-zinc-800 rounded-lg" data-testid="alert-bell">
+      <Bell className="w-5 h-5 text-zinc-400" />
+      {count > 0 && <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 rounded-full text-white text-[10px] flex items-center justify-center font-bold">{count}</span>}
+    </button>
+  );
+};
+
 const Layout = ({ children, user, onLogout }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   
@@ -188,21 +202,23 @@ const Layout = ({ children, user, onLogout }) => {
       <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} user={user} onLogout={onLogout} />
       
       {/* Mobile header */}
-      <header className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-zinc-950 border-b border-zinc-800 z-30 flex items-center px-4">
-        <button 
-          onClick={() => setSidebarOpen(true)}
-          className="p-2 hover:bg-zinc-800 rounded-lg"
-          data-testid="mobile-menu-btn"
-        >
-          <Menu className="w-6 h-6 text-zinc-400" />
-        </button>
-        <div className="flex items-center ml-4">
-          <img src={LOGO_URL} alt="Grill Shack" className="h-10 w-auto object-contain" />
+      <header className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-zinc-950 border-b border-zinc-800 z-30 flex items-center justify-between px-4">
+        <div className="flex items-center">
+          <button onClick={() => setSidebarOpen(true)} className="p-2 hover:bg-zinc-800 rounded-lg" data-testid="mobile-menu-btn">
+            <Menu className="w-6 h-6 text-zinc-400" />
+          </button>
+          <img src={LOGO_URL} alt="Grill Shack" className="h-10 w-auto object-contain ml-3" />
         </div>
+        {user && <AlertBell />}
       </header>
       
       {/* Main content */}
       <main className="lg:ml-64 min-h-screen pt-16 lg:pt-0">
+        {user && (
+          <div className="hidden lg:flex items-center justify-end p-3 border-b border-zinc-800/50">
+            <AlertBell />
+          </div>
+        )}
         <div className="p-4 sm:p-6 lg:p-8">
           {children}
         </div>

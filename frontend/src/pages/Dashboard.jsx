@@ -16,6 +16,7 @@ import {
   ArrowDownRight,
   Wallet
 } from "lucide-react";
+import { DashboardCalendar } from "../components/DashboardCalendar";
 import {
   BarChart,
   Bar,
@@ -338,6 +339,9 @@ const Dashboard = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Calendar */}
+      <DashboardCalendar />
     </div>
   );
 };

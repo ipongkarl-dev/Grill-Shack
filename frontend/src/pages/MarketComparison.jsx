@@ -46,9 +46,16 @@ const MarketComparison = () => {
 
   return (
     <div className="space-y-6" data-testid="market-comparison">
-      <div>
-        <h1 className="text-3xl sm:text-4xl font-heading font-bold text-zinc-50">Market Comparison</h1>
-        <p className="text-zinc-400 mt-2">Side-by-side market profitability analysis</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-3xl sm:text-4xl font-heading font-bold text-zinc-50">Market Comparison</h1>
+          <p className="text-zinc-400 mt-2">Side-by-side market profitability analysis</p>
+        </div>
+        {data.length > 0 && (
+          <Badge className="bg-zinc-800 text-zinc-300 border border-zinc-700 px-3 py-1" data-testid="date-coverage">
+            Coverage: {data.reduce((min, d) => d.first_session_date && d.first_session_date < min ? d.first_session_date : min, '9999-12-31').replace(/-/g, '/')} — Present
+          </Badge>
+        )}
       </div>
 
       {/* Ranking Cards */}

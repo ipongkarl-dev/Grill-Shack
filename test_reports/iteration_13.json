@@ -1,0 +1,92 @@
+{
+  "summary": "Phase C+D features testing completed. All 14 backend tests passed (100%). All frontend features verified working: Dashboard 5 KPIs + Calendar widget + Alert bell with count badge, Sales Dashboard Top Performers panel with market dropdown, Market Comparison date coverage badge, Allocation Tool Accumulation Forecast (1mo/3mo/6mo/1yr), Scale Planner Market Days/Week slider with Schedule Impact panel, Alerts page dismiss functionality, Manual page with updated sections.",
+
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Dashboard/Charts", "issues": ["Console warnings about chart dimensions (-1x-1) - cosmetic only, charts render correctly"]}
+    ]
+  },
+
+  "passed_tests": [
+    "Backend: POST /api/calendar/events creates event - SUCCESS",
+    "Backend: GET /api/calendar/events lists events - SUCCESS",
+    "Backend: DELETE /api/calendar/events/{id} removes event - SUCCESS",
+    "Backend: GET /api/alerts returns alerts list - SUCCESS",
+    "Backend: POST /api/alerts/{id}/dismiss dismisses alert - SUCCESS",
+    "Backend: GET /api/alerts/dismissed returns dismissed IDs - SUCCESS",
+    "Backend: GET /api/dashboard/sales-top-items returns ranked items with top3/bottom/needs_push - SUCCESS",
+    "Backend: GET /api/dashboard/sales-top-items?market_id=xxx filters by market - SUCCESS",
+    "Backend: GET /api/dashboard/market-comparison includes first_session_date - SUCCESS",
+    "Backend: GET /api/dashboard/scale-planner returns projections - SUCCESS",
+    "Backend: GET /api/allocation/calculate returns allocations - SUCCESS",
+    "Backend: GET /api/dashboard/kpis returns 5 KPIs including net_profit - SUCCESS",
+    "Backend: Owner login - SUCCESS",
+    "Backend: Invalid login returns 401 - SUCCESS",
+    "Frontend: Login with owner@grillshack.nz - SUCCESS",
+    "Frontend: Dashboard 5 KPI cards (Total Sales, Gross Profit, Net Profit, Avg COGS %, Total Sessions) - SUCCESS",
+    "Frontend: Alert bell in top-right header with count badge (showing 11) - SUCCESS",
+    "Frontend: Dashboard Calendar widget with add-event-btn - SUCCESS",
+    "Frontend: Calendar event CRUD (add event dialog, save event) - SUCCESS",
+    "Frontend: Sales Dashboard Top Performers panel - SUCCESS",
+    "Frontend: Sales Dashboard market dropdown (market-top-filter) - SUCCESS",
+    "Frontend: Sales Dashboard Top 3 Items section - SUCCESS",
+    "Frontend: Sales Dashboard Needs Promotion section - SUCCESS",
+    "Frontend: Sales Dashboard Lowest Performer section - SUCCESS",
+    "Frontend: Market Comparison date coverage badge (Coverage: 2026/02/15 — Present) - SUCCESS",
+    "Frontend: Allocation Tool page loads - SUCCESS",
+    "Frontend: Allocation Tool Accumulation Forecast section (1 Month, 3 Months, 6 Months, 1 Year) - SUCCESS",
+    "Frontend: Scale Planner Market Days / Week slider - SUCCESS",
+    "Frontend: Scale Planner Schedule Impact panel (2, 3, 4, 5 days/week options) - SUCCESS",
+    "Frontend: Alerts page with dismiss buttons (10 found) - SUCCESS",
+    "Frontend: Alerts page summary cards (Critical, Warnings, Info) - SUCCESS",
+    "Frontend: Manual page with Market Mode, Calendar, Alerts sections - SUCCESS"
+  ],
+
+  "test_report_links": [
+    "/app/backend/tests/test_phase_cd_features.py",
+    "/app/test_reports/pytest/pytest_phase_cd.xml"
+  ],
+
+  "action_items": [],
+
+  "critical_code_review_comments": [
+    "All Phase C+D features implemented correctly",
+    "Calendar events CRUD working with proper authentication",
+    "Alert dismiss functionality persists dismissed IDs in database",
+    "Sales top items endpoint returns ranked products with top3/bottom/needs_push categorization",
+    "Market comparison includes first_session_date for date coverage display",
+    "Scale Planner has flexible market days/week slider with schedule impact calculations"
+  ],
+
+  "updated_files": [
+    "/app/backend/tests/test_phase_cd_features.py"
+  ],
+
+  "success_rate": {
+    "backend": "100% (14/14 tests passed)",
+    "frontend": "100% (all Phase C+D features working)"
+  },
+
+  "test_credentials": {
+    "owner": {
+      "email": "owner@grillshack.nz",
+      "password": "GrillShack2026!",
+      "role": "owner"
+    }
+  },
+
+  "seed_data_creation": "Created test calendar event (TEST_UI_Event) during UI testing",
+
+  "retest_needed": false,
+
+  "should_main_agent_self_test": false,
+
+  "context_for_next_testing_agent": "Phase C+D features verified. Key features: (1) Dashboard has 5 KPIs + Calendar widget + Alert bell with count badge in top-right. (2) Sales Dashboard has Top Performers panel with market dropdown (data-testid=market-top-filter), showing Top 3 Items, Needs Promotion, and Lowest Performer sections. (3) Market Comparison shows date coverage badge (data-testid=date-coverage). (4) Allocation Tool has Accumulation Forecast section with 1 Month, 3 Months, 6 Months, 1 Year projections. (5) Scale Planner has Market Days/Week slider and Schedule Impact panel showing 2-5 days/week options. (6) Alerts page has dismiss buttons (data-testid=dismiss-alert-*) with confirmation. (7) Manual page updated with Market Mode, Calendar, Alerts sections. All backend endpoints working: /api/calendar/events (CRUD), /api/alerts/{id}/dismiss, /api/alerts/dismissed, /api/dashboard/sales-top-items."
+}

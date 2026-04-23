@@ -1255,7 +1255,7 @@ async def get_market_comparison():
                 'market': mname,
                 'sessions': 0, 'total_sales': 0, 'total_cogs': 0,
                 'total_profit': 0, 'total_units': 0,
-                'product_units': {}
+                'product_units': {}, 'first_session_date': '9999-12-31'
             }
         md = market_data[mname]
         md['sessions'] += 1
@@ -1263,6 +1263,9 @@ async def get_market_comparison():
         md['total_cogs'] += s.get('total_cogs', 0)
         md['total_profit'] += s.get('gross_profit', 0)
         md['total_units'] += s.get('total_units', 0)
+        session_date = s.get('date', '9999-12-31')
+        if session_date < md['first_session_date']:
+            md['first_session_date'] = session_date
         for sale in s.get('sales', []):
             pname = sale.get('product_name', '')
             md['product_units'][pname] = md['product_units'].get(pname, 0) + sale.get('units_sold', 0)
@@ -1283,7 +1286,8 @@ async def get_market_comparison():
             'avg_session_revenue': round(avg_session_rev, 2),
             'cogs_percent': round(cogs_pct, 2),
             'profit_margin': round(profit_margin, 2),
-            'top_products': [{'name': n, 'units': u} for n, u in top_products]
+            'top_products': [{'name': n, 'units': u} for n, u in top_products],
+            'first_session_date': md.get('first_session_date', '')
         })
     result.sort(key=lambda x: x['total_profit'], reverse=True)
     return result
@@ -2302,6 +2306,80 @@ async def update_purchase_order(po_id: str, request: Request):
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Purchase order not found")
     return {"message": "Purchase order updated"}
+
+
+# -------- CALENDAR EVENTS --------
+
+class CalendarEventCreate(BaseModel):
+    title: str
+    date: str
+    notes: str = ""
+    alarm: Optional[str] = None
+    event_type: str = "market"  # market, event, note
+
+@api_router.get("/calendar/events")
+async def list_calendar_events():
+    events = await db.calendar_events.find({}, {"_id": 0}).sort("date", 1).to_list(500)
+    return events
+
+@api_router.post("/calendar/events")
+async def create_calendar_event(input: CalendarEventCreate, request: Request):
+    await get_current_user(request)
+    event = {"id": str(uuid.uuid4()), "title": input.title, "date": input.date,
+             "notes": input.notes, "alarm": input.alarm, "event_type": input.event_type,
+             "created_at": datetime.now(timezone.utc).isoformat()}
+    await db.calendar_events.insert_one(event)
+    event.pop('_id', None)
+    return event
+
+@api_router.delete("/calendar/events/{event_id}")
+async def delete_calendar_event(event_id: str, request: Request):
+    await get_current_user(request)
+    result = await db.calendar_events.delete_one({"id": event_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return {"message": "Deleted"}
+
+# -------- ALERT DISMISS --------
+
+@api_router.post("/alerts/{alert_id}/dismiss")
+async def dismiss_alert(alert_id: str, request: Request):
+    await get_current_user(request)
+    await db.dismissed_alerts.insert_one({"alert_id": alert_id, "dismissed_at": datetime.now(timezone.utc).isoformat()})
+    return {"message": "Alert dismissed"}
+
+@api_router.get("/alerts/dismissed")
+async def get_dismissed_alerts():
+    dismissed = await db.dismissed_alerts.find({}, {"_id": 0}).to_list(500)
+    return [d["alert_id"] for d in dismissed]
+
+# -------- SALES TOP ITEMS PER MARKET --------
+
+@api_router.get("/dashboard/sales-top-items")
+async def get_sales_top_items(market_id: Optional[str] = None):
+    query = {}
+    if market_id:
+        query["market_id"] = market_id
+    sessions = await db.sessions.find(query, {"_id": 0}).to_list(5000)
+    products = await db.products.find({}, {"_id": 0}).to_list(100)
+    product_map = {p['id']: p for p in products}
+    product_totals = {}
+    for s in sessions:
+        for sale in s.get('sales', []):
+            pid = sale.get('product_id')
+            if pid not in product_totals:
+                p = product_map.get(pid, {})
+                product_totals[pid] = {'product_id': pid, 'name': p.get('name', pid), 'code': p.get('code', ''),
+                                        'units': 0, 'revenue': 0, 'price': p.get('price', 0)}
+            product_totals[pid]['units'] += sale.get('units_sold', 0)
+            product_totals[pid]['revenue'] += sale.get('sales_value', 0)
+    ranked = sorted(product_totals.values(), key=lambda x: x['revenue'], reverse=True)
+    for i, item in enumerate(ranked):
+        item['rank'] = i + 1
+    top3 = ranked[:3]
+    bottom = ranked[-1] if ranked else None
+    needs_push = [r for r in ranked if r['units'] > 0 and r['revenue'] < (ranked[0]['revenue'] * 0.3)] if ranked else []
+    return {"ranked": ranked, "top3": top3, "bottom": bottom, "needs_push": needs_push[:3]}
 
 
 # -------- SEED DATA --------

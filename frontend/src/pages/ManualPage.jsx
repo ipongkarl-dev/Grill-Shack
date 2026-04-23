@@ -107,17 +107,49 @@ const ManualPage = () => (
         "Restore from backup to recover all data in case of emergency",
       ]} />
 
+      <Section icon={Settings} title="Market Mode (POS Counter)" color="amber" steps={[
+        "Select market and click 'Start New Session' — green indicator light shows LIVE",
+        "Tap product buttons to add items to the current order",
+        "Press CASH or EFTPOS button to complete each order (transaction logged with timestamp)",
+        "Transaction log shows all orders with payment method and time",
+        "Click any transaction to view full order details",
+        "Press 'Save & End Market' to finalize — creates formal session record + auto-backup",
+      ]} />
+
+      <Section icon={Settings} title="Sales Dashboard — Top Items" color="purple" steps={[
+        "Top Performers panel shows #1, #2, #3 ranked items by revenue",
+        "Use market dropdown to filter top items per specific market",
+        "Needs Promotion section highlights underperforming items",
+        "Lowest Performer card helps identify items to consider dropping",
+      ]} />
+
+      <Section icon={Settings} title="Allocation Forecaster & Scale Planner" color="cyan" steps={[
+        "Allocation Tool now shows 1-month, 3-month, 6-month, 1-year savings forecast",
+        "See how much you'll accumulate in Owner Pay, Growth savings, and Emergency reserve",
+        "Scale Planner has a 'Market Days/Week' slider (1-7 days)",
+        "Schedule Impact panel shows revenue projections for 2, 3, 4, and 5 days/week",
+      ]} />
+
+      <Section icon={Settings} title="Calendar & Alerts" color="red" steps={[
+        "Dashboard Calendar shows upcoming market days, events, and notes",
+        "Add events with date, type (Market/Event/Note), and optional notes",
+        "Alert bell (top-right) shows unread alert count in red badge",
+        "Click the bell to jump to Alerts page",
+        "Each alert is clickable — links to relevant page for action",
+        "Dismiss alerts with the trash button (confirmation required)",
+      ]} />
+
       <Section icon={Settings} title="Settings & Password" color="zinc" steps={[
         "Change your login password from the Settings page",
         "Enter current password, then new password (min 6 characters)",
         "All Excel export buttons are also accessible from Settings for convenience",
-        "Staff users see a limited set of pages — owner can manage all modules",
+        "Roles: Admin (full access), User (operational pages only)",
       ]} />
     </div>
 
     <Card className="bg-zinc-900 border-zinc-800">
       <CardContent className="p-5 text-center">
-        <p className="text-sm text-zinc-500">Grill Shack Management v2.0 — Built for NZ market traders</p>
+        <p className="text-sm text-zinc-500">Grill Shack Management v3.0 — Built for NZ market traders</p>
         <p className="text-xs text-zinc-600 mt-1">All amounts in NZD. GST rate configurable in Allocation Tool settings.</p>
       </CardContent>
     </Card>

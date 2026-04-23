@@ -16,6 +16,7 @@ const fmt = (v) => new Intl.NumberFormat('en-NZ', { style: 'currency', currency:
 const ScalePlanner = () => {
   const [targetRevenue, setTargetRevenue] = useState("3000");
   const [weeksHorizon, setWeeksHorizon] = useState(12);
+  const [daysPerWeek, setDaysPerWeek] = useState(2);
   const [plan, setPlan] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -58,6 +59,13 @@ const ScalePlanner = () => {
             <div className="flex-1 space-y-2">
               <Label className="text-zinc-400">Target Weekly Revenue (NZD)</Label>
               <Input type="number" value={targetRevenue} onChange={e => setTargetRevenue(e.target.value)} className="bg-zinc-800 border-zinc-700" placeholder="3000" data-testid="scale-target-input" />
+            </div>
+            <div className="flex-1 space-y-2">
+              <div className="flex justify-between">
+                <Label className="text-zinc-400">Market Days / Week</Label>
+                <span className="text-cyan-500 font-mono font-bold">{daysPerWeek} days</span>
+              </div>
+              <Slider value={[daysPerWeek]} onValueChange={([v]) => setDaysPerWeek(v)} min={1} max={7} step={1} />
             </div>
             <div className="flex-1 space-y-2">
               <div className="flex justify-between">
@@ -114,6 +122,31 @@ const ScalePlanner = () => {
               </CardContent>
             </Card>
           </div>
+
+          {/* Schedule Impact */}
+          <Card className="bg-zinc-900 border-zinc-800 border-cyan-500/20">
+            <CardHeader><CardTitle className="text-base font-heading text-zinc-50 flex items-center"><Calendar className="w-4 h-4 mr-2 text-cyan-500" /> Schedule Impact ({daysPerWeek} days/week)</CardTitle></CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[2, 3, 4, 5].map(days => {
+                  const revPerDay = plan.avg_session_revenue;
+                  const weeklyRev = revPerDay * days;
+                  const monthlyRev = weeklyRev * 4.33;
+                  const gap = plan.target_weekly_revenue - weeklyRev;
+                  return (
+                    <div key={days} className={`p-3 rounded-lg border text-center ${days === daysPerWeek ? 'border-cyan-500/40 bg-cyan-500/5' : 'border-zinc-800 bg-zinc-800/30'}`}>
+                      <p className="text-xs text-zinc-500">{days} days/week</p>
+                      <p className="text-lg font-bold font-heading text-cyan-500 mt-1">{fmt(weeklyRev)}<span className="text-xs text-zinc-500">/wk</span></p>
+                      <p className="text-xs text-zinc-400">{fmt(monthlyRev)}/mo</p>
+                      <p className={`text-xs mt-1 ${gap > 0 ? 'text-red-400' : 'text-emerald-500'}`}>
+                        {gap > 0 ? `${fmt(gap)} short` : 'Target met'}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Projection Chart */}
           <Card className="bg-zinc-900 border-zinc-800">

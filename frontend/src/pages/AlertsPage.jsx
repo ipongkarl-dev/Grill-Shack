@@ -5,18 +5,23 @@ import axios from "axios";
 import { API } from "../App";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
-import { Bell, AlertTriangle, AlertCircle, Info, Package, DollarSign, TrendingUp, RefreshCw } from "lucide-react";
+import { Bell, AlertTriangle, AlertCircle, Info, Package, DollarSign, TrendingUp, RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "../components/ui/button";
 
 const AlertsPage = () => {
   const [alerts, setAlerts] = useState([]);
+  const [dismissed, setDismissed] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const fetchAlerts = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`${API}/alerts`);
+      const [res, dRes] = await Promise.all([
+        axios.get(`${API}/alerts`),
+        axios.get(`${API}/alerts/dismissed`)
+      ]);
       setAlerts(res.data);
+      setDismissed(dRes.data);
     } catch (_e) { toast.error('Failed to load data'); }
     finally { setLoading(false); }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- only module-level imports (API, axios, toast) and stable state setters used
@@ -26,9 +31,19 @@ const AlertsPage = () => {
 
   if (loading) return <div className="h-96 bg-zinc-900 rounded-xl animate-pulse" />;
 
-  const criticalAlerts = alerts.filter(a => a.severity === 'critical');
-  const warningAlerts = alerts.filter(a => a.severity === 'warning');
-  const infoAlerts = alerts.filter(a => a.severity === 'info');
+  const visibleAlerts = alerts.filter(a => !dismissed.includes(a.id));
+  const criticalAlerts = visibleAlerts.filter(a => a.severity === 'critical');
+  const warningAlerts = visibleAlerts.filter(a => a.severity === 'warning');
+  const infoAlerts = visibleAlerts.filter(a => a.severity === 'info');
+
+  const dismissAlert = async (id) => {
+    if (!window.confirm("Dismiss this alert?")) return;
+    try {
+      await axios.post(`${API}/alerts/${id}/dismiss`);
+      setDismissed(prev => [...prev, id]);
+      toast.success("Alert dismissed");
+    } catch (_e) { toast.error("Failed to dismiss"); }
+  };
 
   const getIcon = (type) => {
     switch (type) {
@@ -85,7 +100,7 @@ const AlertsPage = () => {
       </div>
 
       {/* Alert List */}
-      {alerts.length === 0 ? (
+      {visibleAlerts.length === 0 ? (
         <Card className="bg-zinc-900 border-zinc-800">
           <CardContent className="py-12 text-center text-zinc-500">
             <Bell className="w-12 h-12 mx-auto mb-3 opacity-50" />
@@ -94,13 +109,13 @@ const AlertsPage = () => {
         </Card>
       ) : (
         <div className="space-y-3">
-          {alerts.map(alert => {
+          {visibleAlerts.map(alert => {
             const style = getSeverityStyle(alert.severity);
             const linkTo = alert.type === 'stock' ? '/inventory' : alert.type === 'cash' ? '/cash' : '/products';
             return (
-              <Link key={alert.id} to={linkTo} data-testid={`alert-link-${alert.id}`}>
-                <Card className={`bg-zinc-900 border ${style.card} transition-all duration-200 hover:-translate-y-0.5 cursor-pointer`}>
-                  <CardContent className="p-4">
+              <div key={alert.id} className={`bg-zinc-900 border ${style.card} rounded-lg transition-all duration-200 hover:-translate-y-0.5`}>
+                <Link to={linkTo} data-testid={`alert-link-${alert.id}`}>
+                  <div className="p-4">
                     <div className="flex items-start gap-4">
                       <div className={`p-2 rounded-lg ${style.badge}`}>
                         {getIcon(alert.type)}
@@ -108,20 +123,20 @@ const AlertsPage = () => {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-semibold text-zinc-200">{alert.title}</p>
-                          <Badge className={style.badge}>
-                            {alert.severity.charAt(0).toUpperCase() + alert.severity.slice(1)}
-                          </Badge>
-                          <Badge className="bg-zinc-800 text-zinc-400 text-xs">{alert.type}</Badge>
+                          <Badge className={style.badge}>{alert.severity.charAt(0).toUpperCase() + alert.severity.slice(1)}</Badge>
                         </div>
                         <p className="text-sm text-zinc-400 mt-1">{alert.message}</p>
-                        <p className="text-xs text-orange-500 mt-1">
-                          Click to {alert.type === 'stock' ? 'restock' : alert.type === 'cash' ? 'reconcile' : 'adjust pricing'}
-                        </p>
+                        <p className="text-xs text-orange-500 mt-1">Click to {alert.type === 'stock' ? 'restock' : alert.type === 'cash' ? 'reconcile' : 'adjust pricing'}</p>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              </Link>
+                  </div>
+                </Link>
+                <div className="flex justify-end px-4 pb-2">
+                  <Button size="sm" variant="ghost" onClick={() => dismissAlert(alert.id)} className="text-zinc-500 hover:text-red-500 text-xs" data-testid={`dismiss-alert-${alert.id}`}>
+                    <Trash2 className="w-3 h-3 mr-1" /> Dismiss
+                  </Button>
+                </div>
+              </div>
             );
           })}
         </div>
