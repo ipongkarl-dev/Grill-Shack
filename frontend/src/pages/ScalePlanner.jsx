@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import axios from "axios";
 import { API } from "../App";
 import { CHART_TOOLTIP_STYLE, CHART_AXIS_TICK, CHART_AXIS_TICK_SM, CHART_GRID_STROKE, CHART_AXIS_STROKE, BAR_RADIUS_LARGE } from "../lib/chartUtils";
@@ -13,6 +13,8 @@ import { Rocket, Target, DollarSign, TrendingUp, Calendar, ShoppingCart, Warehou
 
 const fmt = (v) => new Intl.NumberFormat('en-NZ', { style: 'currency', currency: 'NZD' }).format(v);
 
+const SCHEDULE_DAYS = [2, 3, 4, 5];
+
 const ScalePlanner = () => {
   const [targetRevenue, setTargetRevenue] = useState("3000");
   const [weeksHorizon, setWeeksHorizon] = useState(12);
@@ -20,16 +22,15 @@ const ScalePlanner = () => {
   const [plan, setPlan] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchPlan = async () => {
+  const fetchPlan = useCallback(async () => {
     try {
       const res = await axios.get(`${API}/dashboard/scale-planner?target_weekly_revenue=${targetRevenue}&weeks_horizon=${weeksHorizon}`);
       setPlan(res.data);
     } catch (_e) { toast.error('Failed to load data'); }
     finally { setLoading(false); }
-  };
+  }, [targetRevenue, weeksHorizon]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- only module-level imports (API, axios, toast) and stable state setters used
-  useEffect(() => { fetchPlan(); }, []);
+  useEffect(() => { fetchPlan(); }, [fetchPlan]);
 
   if (loading) return <div className="h-96 bg-zinc-900 rounded-xl animate-pulse" />;
 
@@ -128,7 +129,7 @@ const ScalePlanner = () => {
             <CardHeader><CardTitle className="text-base font-heading text-zinc-50 flex items-center"><Calendar className="w-4 h-4 mr-2 text-cyan-500" /> Schedule Impact ({daysPerWeek} days/week)</CardTitle></CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {[2, 3, 4, 5].map(days => {
+                {SCHEDULE_DAYS.map(days => {
                   const revPerDay = plan.avg_session_revenue;
                   const weeklyRev = revPerDay * days;
                   const monthlyRev = weeklyRev * 4.33;

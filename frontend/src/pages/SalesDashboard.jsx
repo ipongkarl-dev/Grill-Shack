@@ -13,6 +13,15 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { TrendingUp, DollarSign, Package, ShoppingCart, Download, Trophy, ArrowDown, Zap } from "lucide-react";
 import { CHART_TOOLTIP_STYLE, CHART_AXIS_TICK, CHART_GRID_STROKE, CHART_AXIS_STROKE } from "../lib/chartUtils";
 
+const BAR_RADIUS_TOP = [4, 4, 0, 0];
+const FORECAST_PERIODS = [
+  { label: '1 Month', weeks: 4 },
+  { label: '3 Months', weeks: 13 },
+  { label: '6 Months', weeks: 26 },
+  { label: '1 Year', weeks: 52 }
+];
+const SCHEDULE_DAYS = [2, 3, 4, 5];
+
 const KpiCard = ({ icon: Icon, label, value, color }) => (
   <Card className="bg-zinc-900 border-zinc-800">
     <CardContent className="p-4">
@@ -60,7 +69,7 @@ const SalesDashboard = () => {
       const params = selectedMarket !== "all" ? `?market_id=${selectedMarket}` : "";
       const res = await axios.get(`${API}/dashboard/sales-top-items${params}`);
       setTopItems(res.data);
-    } catch (_e) { console.warn('Failed to prefetch top items'); }
+    } catch (_e) { /* prefetch failure is non-critical */ }
   }, [selectedMarket]);
 
   useEffect(() => { fetchTopItems(); }, [fetchTopItems]);
@@ -184,8 +193,8 @@ const SalesDashboard = () => {
                       <YAxis yAxisId="right" orientation="right" stroke={CHART_AXIS_STROKE} tick={CHART_AXIS_TICK} tickFormatter={v => `$${v}`} />
                       <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
                       <Legend />
-                      <Bar yAxisId="left" dataKey="units" name="Units" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                      <Bar yAxisId="right" dataKey="cogs" name="COGS ($)" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                      <Bar yAxisId="left" dataKey="units" name="Units" fill="#3b82f6" radius={BAR_RADIUS_TOP} />
+                      <Bar yAxisId="right" dataKey="cogs" name="COGS ($)" fill="#ef4444" radius={BAR_RADIUS_TOP} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>

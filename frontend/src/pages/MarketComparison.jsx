@@ -1,5 +1,5 @@
 import { toast } from "sonner";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import axios from "axios";
 import { API } from "../App";
 import { CHART_TOOLTIP_STYLE, CHART_AXIS_TICK, CHART_AXIS_TICK_SM, CHART_GRID_STROKE, CHART_AXIS_STROKE, BAR_RADIUS } from "../lib/chartUtils";
@@ -29,6 +29,8 @@ const MarketComparison = () => {
 
   if (loading) return <div className="h-96 bg-zinc-900 rounded-xl animate-pulse" />;
 
+  const earliestDate = data.reduce((min, d) => (d.first_session_date && d.first_session_date < min) ? d.first_session_date : min, '9999-12-31').replace(/-/g, '/');
+
   // Radar chart data
   const maxSales = Math.max(...data.map(d => d.total_sales), 1);
   const maxProfit = Math.max(...data.map(d => d.total_profit), 1);
@@ -53,7 +55,7 @@ const MarketComparison = () => {
         </div>
         {data.length > 0 && (
           <Badge className="bg-zinc-800 text-zinc-300 border border-zinc-700 px-3 py-1" data-testid="date-coverage">
-            Coverage: {data.reduce((min, d) => d.first_session_date && d.first_session_date < min ? d.first_session_date : min, '9999-12-31').replace(/-/g, '/')} — Present
+            Coverage: {earliestDate} — Present
           </Badge>
         )}
       </div>

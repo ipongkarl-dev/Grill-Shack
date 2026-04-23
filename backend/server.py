@@ -2229,22 +2229,22 @@ async def update_transaction(session_id: str, txn_id: str, request: Request):
     if not ms:
         raise HTTPException(status_code=404, detail="Session not found")
     txns = ms.get("transactions", [])
-    updated = False
-    for i, t in enumerate(txns):
+    updated_txn = None
+    for idx, t in enumerate(txns):
         if t.get("id") == txn_id:
             if "items" in body:
-                txns[i]["items"] = body["items"]
+                txns[idx]["items"] = body["items"]
             if "total" in body:
-                txns[i]["total"] = body["total"]
+                txns[idx]["total"] = body["total"]
             if "payment_method" in body:
-                txns[i]["payment_method"] = body["payment_method"]
-            txns[i]["updated_at"] = datetime.now(timezone.utc).isoformat()
-            updated = True
+                txns[idx]["payment_method"] = body["payment_method"]
+            txns[idx]["updated_at"] = datetime.now(timezone.utc).isoformat()
+            updated_txn = txns[idx]
             break
-    if not updated:
+    if updated_txn is None:
         raise HTTPException(status_code=404, detail="Transaction not found")
     await db.market_sessions.update_one({"id": session_id}, {"$set": {"transactions": txns}})
-    return txns[i]
+    return updated_txn
 
 @api_router.delete("/market-mode/sessions/{session_id}/transaction/{txn_id}")
 async def delete_transaction(session_id: str, txn_id: str, request: Request):

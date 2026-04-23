@@ -26,6 +26,13 @@ import {
   Tooltip
 } from "recharts";
 
+const FORECAST_PERIODS = [
+  { label: '1 Month', weeks: 4 },
+  { label: '3 Months', weeks: 13 },
+  { label: '6 Months', weeks: 26 },
+  { label: '1 Year', weeks: 52 }
+];
+
 const formatCurrency = (value) => {
   return new Intl.NumberFormat('en-NZ', {
     style: 'currency',
@@ -310,7 +317,7 @@ const AllocationTool = () => {
                 <div className="border-t border-zinc-800 pt-4">
                   <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-3">Accumulation Forecast</p>
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-                    {[{label: '1 Month', weeks: 4}, {label: '3 Months', weeks: 13}, {label: '6 Months', weeks: 26}, {label: '1 Year', weeks: 52}].map(p => (
+                    {FORECAST_PERIODS.map(p => (
                       <div key={p.label} className="p-2 rounded-lg bg-zinc-800/50 text-center">
                         <p className="text-xs text-zinc-500">{p.label}</p>
                         <p className="text-sm font-bold font-heading text-orange-500">{formatCurrency(allocation.allocations.owner_pay * p.weeks)}</p>
